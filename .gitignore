@@ -61,6 +61,10 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Social Listening Platform
+social_listening.db
+social_listening.db-journal
+
 # Flask stuff:
 instance/
 .webassets-cache
