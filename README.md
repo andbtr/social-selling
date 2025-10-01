@@ -240,19 +240,3 @@ DATABASE_URL=postgresql://usuario:contraseña@localhost/social_listening
 ## 📝 Licencia
 
 MIT License - ver el archivo [LICENSE](LICENSE) para más detalles.
-
-## 👥 Contribución
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📧 Contacto
-
-Anderson Bill Ticona Remond - [@andbtr](https://github.com/andbtr)
-
-Link del proyecto: [https://github.com/andbtr/social-selling](https://github.com/andbtr/social-selling)
