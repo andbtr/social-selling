@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.schemas import PostCreate
 from app.services.ingestion_service import (
+    InstagramIngestionService,
     MetaIngestionService,
     XIngestionService,
     TripAdvisorIngestionService
@@ -10,8 +12,36 @@ from app.services.comment_service import CommentService
 from app.schemas.comment import CommentCreate, CommentResponse
 from typing import List
 
+from app.services.post_service import PostService
+
 router = APIRouter(prefix="/ingest", tags=["Data Ingestion"])
 
+
+@router.post("/instagram/posts")
+async def ingest_instagram_posts(db: Session = Depends(get_db)):
+    try:
+        # Fetch posts from Meta IG API
+        posts_data = await InstagramIngestionService.fetch_instagram_posts()
+
+        created_posts = []
+        for post_data in posts_data:
+            # Transform to internal format
+            post_dict = InstagramIngestionService.transform_to_post(post_data)
+
+            # Check if already exists
+            existing = PostService.get_post_by_platform_id(
+                db, post_dict["platform_id"]
+            )
+            if not existing:
+                # Create post
+                post = PostCreate(**post_dict)
+                db_post = PostService.create_post(db, post)
+                created_posts.append(db_post)
+
+        return created_posts
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error ingesting Meta posts: {str(e)}")
 
 @router.post("/meta/{post_id}", response_model=List[CommentResponse])
 async def ingest_meta_comments(

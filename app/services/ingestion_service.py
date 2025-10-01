@@ -1,15 +1,75 @@
 import httpx
 from typing import List, Dict, Any
+
+from fastapi import requests
+
+from app.core.database import SessionLocal
+from app.services.post_service import PostService
 from app.core.config import settings
 from datetime import datetime
 import json
 
 
+class InstagramIngestionService:
+    BASE_URL = "https://graph.facebook.com/v23.0"
+
+    @staticmethod
+    async def fetch_comments(post_id: str, access_token: str):
+        async with httpx.AsyncClient() as client:
+            url = f"{InstagramIngestionService.BASE_URL}/{post_id}/comments"
+            params = {"access_token": access_token, "fields": "id,text,username,timestamp"}
+            r = await client.get(url, params=params)
+            return r.json().get("data", [])
+
+    @staticmethod
+    async def fetch_instagram_posts():
+        async with httpx.AsyncClient() as client:
+            url = f"{InstagramIngestionService.BASE_URL}/{settings.instagram_business_account_id}/media"
+            params = {
+                "access_token": settings.meta_ig_access_token,
+                "fields": "id,caption,media_type,media_url,timestamp"
+            }
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            return response.json().get("data", [])
+
+    @staticmethod
+    def ingest_instagram_posts():
+        posts_data = fetch_instagram_posts()
+        db = SessionLocal()
+        for post in posts_data:
+            db_post = Post(
+                platform="instagram",
+                platform_id=post["id"],
+                text=post.get("caption", ""),
+                media_type=post.get("media_type"),
+                media_url=post.get("media_url"),
+                platform_created_at=post.get("timestamp")
+            )
+            db.add(db_post)
+        db.commit()
+        db.close()
+
+    @staticmethod
+    def transform_to_post(post_data: dict) -> dict:
+        """Transform Instagram post data to internal format."""
+        return {
+            "platform": "instagram",
+            "platform_id": post_data.get("id"),
+            "text": post_data.get("caption", ""),
+            "media_type": post_data.get("media_type"),
+            "media_url": post_data.get("media_url"),
+            "platform_created_at": post_data.get("timestamp"),
+            "extra_data": json.dumps(post_data)
+        }
+
+
+
 class MetaIngestionService:
     """Service for ingesting data from Meta (Facebook/Instagram) API."""
     
-    BASE_URL = "https://graph.facebook.com/v18.0"
-    
+    BASE_URL = "https://graph.facebook.com/v23.0"
+
     @staticmethod
     async def fetch_comments(post_id: str) -> List[Dict[str, Any]]:
         """
