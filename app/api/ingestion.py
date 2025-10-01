@@ -43,6 +43,35 @@ async def ingest_instagram_posts(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting Meta posts: {str(e)}")
 
+@router.post("/instagram/comments", response_model=List[CommentResponse])
+async def ingest_instagram_comments(db: Session = Depends(get_db)):
+    try:
+        # Fetch all posts
+        posts = await InstagramIngestionService.fetch_instagram_posts()
+        created_comments = []
+
+        for post in posts:
+            post_id = post["id"]
+            # Fetch comments for each post
+            comments_data = await InstagramIngestionService.fetch_comments(post_id)
+            for comment_data in comments_data:
+                # Transform to internal format
+                comment_dict = InstagramIngestionService.transform_to_comment(comment_data)
+                # Check if already exists
+                existing = CommentService.get_comment_by_platform_id(
+                    db, comment_dict["platform_id"]
+                )
+                if not existing:
+                    comment = CommentCreate(**comment_dict)
+                    db_comment = CommentService.create_comment(db, comment)
+                    created_comments.append(db_comment)
+
+        return created_comments
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error ingesting Instagram comments: {str(e)}")
+
+
 @router.post("/meta/{post_id}", response_model=List[CommentResponse])
 async def ingest_meta_comments(
     post_id: str,

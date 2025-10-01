@@ -14,14 +14,6 @@ class InstagramIngestionService:
     BASE_URL = "https://graph.facebook.com/v23.0"
 
     @staticmethod
-    async def fetch_comments(post_id: str, access_token: str):
-        async with httpx.AsyncClient() as client:
-            url = f"{InstagramIngestionService.BASE_URL}/{post_id}/comments"
-            params = {"access_token": access_token, "fields": "id,text,username,timestamp"}
-            r = await client.get(url, params=params)
-            return r.json().get("data", [])
-
-    @staticmethod
     async def fetch_instagram_posts():
         async with httpx.AsyncClient() as client:
             url = f"{InstagramIngestionService.BASE_URL}/{settings.instagram_business_account_id}/media"
@@ -63,6 +55,39 @@ class InstagramIngestionService:
             "extra_data": json.dumps(post_data)
         }
 
+    @staticmethod
+    async def fetch_all_instagram_comments(access_token: str):
+        posts = await InstagramIngestionService.fetch_instagram_posts()
+        comments = []
+        for post in posts:
+            post_id = post["id"]
+            post_comments = await InstagramIngestionService.fetch_comments(post_id)
+        comments.extend(post_comments)
+        return comments
+
+    @staticmethod
+    async def fetch_comments(post_id: str):
+        async with httpx.AsyncClient() as client:
+            url = f"{InstagramIngestionService.BASE_URL}/{post_id}/comments"
+            params = {
+                "access_token": settings.meta_ig_access_token,
+                "fields": "id,text,username,timestamp"
+            }
+            r = await client.get(url, params=params)
+            return r.json().get("data", [])
+
+    @staticmethod
+    def transform_to_comment(comment_data: dict) -> dict:
+        """Transform Instagram comment data to internal format."""
+        return {
+            "platform": "instagram",
+            "platform_id": comment_data.get("id"),
+            "author": comment_data.get("username"),
+            "content": comment_data.get("text", ""),
+            "post_url": None,
+            "platform_created_at": comment_data.get("timestamp"),
+            "extra_data": json.dumps(comment_data)
+        }
 
 
 class MetaIngestionService:

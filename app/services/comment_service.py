@@ -3,6 +3,8 @@ from app.models.comment import Comment
 from app.schemas.comment import CommentCreate
 from typing import Optional, List
 
+from app.services.post_service import PostService
+
 
 class CommentService:
     """Service for managing comments."""
@@ -46,3 +48,25 @@ class CommentService:
         if platform:
             query = query.filter(Comment.platform == platform)
         return query.count()
+
+    @staticmethod
+    def fetch_and_store_comments_for_all_posts(db, access_token):
+        posts = PostService.get_all_posts(db)
+        for post in posts:
+            # Replace with actual Meta API endpoint and parameters
+            url = f"https://graph.facebook.com/v19.0/{post.platform_id}/comments"
+            params = {"access_token": access_token}
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                for item in data:
+                    if not CommentService.get_comment_by_platform_id(db, item["id"]):
+                        comment_in = CommentCreate(
+                            platform_id=item["id"],
+                            post_id=post.id,
+                            text=item.get("text", ""),
+                            media_type="comment",
+                            platform="instagram",
+                            created_at=item.get("timestamp")
+                        )
+                        CommentService.create_comment(db, comment_in)

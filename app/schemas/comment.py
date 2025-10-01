@@ -12,8 +12,6 @@ class CommentBase(BaseModel):
     content: str = Field(..., min_length=1, description="Comment content")
     post_url: Optional[str] = None
     platform_created_at: Optional[datetime] = None
-    extra_data: Optional[str] = None
-
 
 class CommentCreate(CommentBase):
     """Schema for creating a comment."""
