@@ -6,7 +6,8 @@ from app.services.ingestion_service import (
     InstagramIngestionService,
     MetaIngestionService,
     XIngestionService,
-    TripAdvisorIngestionService
+    TripAdvisorIngestionService,
+    FacebookIngestionService
 )
 from app.services.comment_service import CommentService
 from app.schemas.comment import CommentCreate, CommentResponse
@@ -160,3 +161,114 @@ async def ingest_tripadvisor_reviews(
         return created_comments
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting TripAdvisor reviews: {str(e)}")
+
+@router.post("/facebook/posts")
+async def ingest_facebook_posts(db: Session = Depends(get_db)):
+    """
+    Trae posts de la página de Facebook (config en .env) y los guarda.
+    """
+    try:
+        # 1) Traer posts desde Graph API (servicio FB)
+        posts_data = FacebookIngestionService.fetch_posts()
+
+        created_posts = []
+        for p in posts_data:
+            post_dict = {
+                "platform": "facebook",
+                "platform_id": p["id"],
+                "text": p.get("message", "") or "",
+                "media_type": "post",
+                "media_url": p.get("permalink_url"),
+                "platform_created_at": p.get("created_time"),
+            }
+
+            # 2) Evitar duplicados por platform_id (igual que haces en IG)
+            existing = PostService.get_post_by_platform_id(db, post_dict["platform_id"])
+            if not existing:
+                post = PostCreate(**post_dict)
+                db_post = PostService.create_post(db, post)
+                created_posts.append(db_post)
+
+        return created_posts
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error ingesting Facebook posts: {str(e)}")
+
+
+@router.post("/facebook/comments", response_model=List[CommentResponse])
+async def ingest_facebook_comments(db: Session = Depends(get_db)):
+    """
+    Trae comentarios de todos los posts recientes de la página y los guarda.
+    FB solo permite comentarios post-por-post.
+    """
+    try:
+        created_comments = []
+
+        # 1) Traemos los posts (del Graph, no de la DB, para asegurar que existan)
+        posts_data = FacebookIngestionService.fetch_posts()
+
+        for p in posts_data:
+            post_id = p["id"]
+            comments_data = FacebookIngestionService.fetch_comments(post_id)
+
+            for c in comments_data:
+                comment_dict = {
+                    "platform": "facebook",
+                    "platform_id": c["id"],
+                    "author": (c.get("from") or {}).get("name"),
+                    "content": c.get("message", "") or "",
+                    "post_url": p.get("permalink_url"),
+                    "platform_created_at": c.get("created_time"),
+                }
+
+                existing = CommentService.get_comment_by_platform_id(
+                    db, comment_dict["platform_id"]
+                )
+                if not existing:
+                    comment = CommentCreate(**comment_dict)
+                    db_comment = CommentService.create_comment(db, comment)
+                    created_comments.append(db_comment)
+
+        return created_comments
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error ingesting Facebook comments: {str(e)}")
+    
+
+@router.post("/facebook/comments/{post_platform_id}", response_model=List[CommentResponse])
+async def ingest_facebook_comments_for_post(
+    post_platform_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Trae y guarda comentarios de un post específico (por su ID de plataforma).
+    """
+    try:
+        created_comments = []
+
+        comments_data = FacebookIngestionService.fetch_comments(post_platform_id)
+        # Si quieres, intenta obtener el permalink del post llamando a /{id}?fields=permalink_url
+        post_permalink = None
+
+        for c in comments_data:
+            comment_dict = {
+                "platform": "facebook",
+                "platform_id": c["id"],
+                "author": (c.get("from") or {}).get("name"),
+                "content": c.get("message", "") or "",
+                "post_url": post_permalink,
+                "platform_created_at": c.get("created_time"),
+            }
+
+            existing = CommentService.get_comment_by_platform_id(
+                db, comment_dict["platform_id"]
+            )
+            if not existing:
+                comment = CommentCreate(**comment_dict)
+                db_comment = CommentService.create_comment(db, comment)
+                created_comments.append(db_comment)
+
+        return created_comments
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error ingesting Facebook comments for post: {str(e)}")

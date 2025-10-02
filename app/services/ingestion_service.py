@@ -225,3 +225,57 @@ class TripAdvisorIngestionService:
             "platform_created_at": review_data.get("published_date"),
             "extra_data": json.dumps(review_data)
         }
+    
+
+class FacebookIngestionService:
+    # (opcional) usa la misma versión que tu Explorer
+    BASE_URL = "https://graph.facebook.com/v23.0"
+
+    @staticmethod
+    def _page_token() -> str:
+        """
+        Lee el token desde settings o variables de entorno.
+        Evita el caso donde settings.fb_access_token venga vacío.
+        """
+        import os
+        token = (
+            getattr(settings, "fb_access_token", "")               # alias que agregamos en Settings
+            or getattr(settings, "meta_fb_access_token", "")       # nombre original en Settings
+            or os.environ.get("META_FB_ACCESS_TOKEN", "")          # por si el sistema tiene la var
+        )
+        if not token:
+            # Deja este error claro para no seguir llamando al Graph sin token
+            raise RuntimeError("Facebook access token is empty. Check .env (META_FB_ACCESS_TOKEN).")
+        return token
+
+    @staticmethod
+    def _get(url: str, params: dict):
+        resp = httpx.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+
+    @staticmethod
+    def fetch_posts(page_id: str | None = None, limit: int = 50):
+        access_token = FacebookIngestionService._page_token()
+        page_id = page_id or settings.fb_page_id
+        url = f"{FacebookIngestionService.BASE_URL}/{page_id}/posts"
+        params = {
+            "fields": "id,message,created_time,permalink_url",
+            "limit": limit,
+            "access_token": access_token,
+        }
+        data = FacebookIngestionService._get(url, params)
+        return data.get("data", [])
+
+    @staticmethod
+    def fetch_comments(post_platform_id: str, limit: int = 100):
+        access_token = FacebookIngestionService._page_token()
+        url = f"{FacebookIngestionService.BASE_URL}/{post_platform_id}/comments"
+        params = {
+            "fields": "id,from,message,created_time",
+            "limit": limit,
+            "access_token": access_token,
+        }
+        data = FacebookIngestionService._get(url, params)
+        return data.get("data", [])
+
