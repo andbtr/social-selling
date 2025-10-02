@@ -6,6 +6,7 @@ Una aplicación de social selling centrada en la fase de social listening, dise�
 
 - **Ingesta de datos multi-plataforma**: Soporte para Meta (Facebook/Instagram), X (Twitter) y TripAdvisor
 - **API REST con FastAPI**: Endpoints rápidos y documentados automáticamente
+- **X API v2 Integration**: Acceso directo a la API de X con soporte para Free Tier (100 lecturas/mes)
 - **Almacenamiento con SQLAlchemy**: Base de datos relacional para gestionar comentarios
 - **Arquitectura modular**: Servicios separados para cada plataforma
 - **Migraciones de base de datos**: Gestión de esquemas con Alembic
@@ -49,10 +50,19 @@ Edita el archivo `.env` con tus credenciales de API:
 
 ```env
 DATABASE_URL=sqlite:///./social_listening.db
+
+# Meta (Facebook/Instagram) API
 META_API_KEY=tu_clave_api_meta
-X_API_KEY=tu_clave_api_x
+META_API_SECRET=tu_secreto_api_meta
+
+# X (Twitter) API v2 - Free Tier
+X_BEARER_TOKEN=tu_bearer_token_de_x
+
+# TripAdvisor API
 TRIPADVISOR_API_KEY=tu_clave_api_tripadvisor
 ```
+
+**Para configurar X API**: Ver [X_API_GUIDE.md](X_API_GUIDE.md) para instrucciones detalladas.
 
 5. **Inicializar la base de datos**
 
@@ -115,6 +125,24 @@ POST /ingest/x/{tweet_id}
 POST /ingest/tripadvisor/{location_id}
 ```
 
+#### X API Direct Access (Nuevo)
+
+```http
+# Obtener un tweet
+GET /x/tweets/{tweet_id}
+
+# Obtener múltiples tweets
+POST /x/tweets/batch
+
+# Obtener usuario por username
+GET /x/users/by-username/{username}
+
+# Obtener tweets de un usuario
+GET /x/users/{user_id}/tweets
+```
+
+**Ver documentación completa**: [X_API_GUIDE.md](X_API_GUIDE.md)
+
 ### Ejemplo de Uso
 
 #### Ingestar comentarios de Meta
@@ -122,6 +150,12 @@ POST /ingest/tripadvisor/{location_id}
 ```bash
 curl -X POST "http://localhost:8000/ingest/meta/12345" \
   -H "Content-Type: application/json"
+```
+
+#### Obtener información de un tweet (X API)
+
+```bash
+curl "http://localhost:8000/x/tweets/1234567890?include_author=true&include_metrics=true"
 ```
 
 #### Listar comentarios filtrados por plataforma
@@ -140,7 +174,8 @@ social-selling/
 ├── app/
 │   ├── api/             # Endpoints de la API
 │   │   ├── comments.py
-│   │   └── ingestion.py
+│   │   ├── ingestion.py
+│   │   └── x_api.py     # 🆕 Endpoints de X API
 │   ├── core/            # Configuración central
 │   │   ├── config.py
 │   │   └── database.py
@@ -150,10 +185,14 @@ social-selling/
 │   │   └── comment.py
 │   └── services/        # Lógica de negocio
 │       ├── comment_service.py
-│       └── ingestion_service.py
+│       ├── ingestion_service.py
+│       └── x_api_service.py  # 🆕 Servicio de X API
 ├── main.py              # Punto de entrada de la aplicación
 ├── requirements.txt     # Dependencias
 ├── .env.example        # Plantilla de configuración
+├── API_REFERENCE.md    # Referencia rápida de API
+├── X_API_GUIDE.md      # 🆕 Guía completa de X API
+├── test_x_api.py       # 🆕 Tests para X API
 └── README.md
 ```
 
@@ -164,6 +203,8 @@ social-selling/
 - **Alembic**: Migraciones de base de datos
 - **Pydantic**: Validación de datos
 - **Uvicorn**: Servidor ASGI
+- **httpx**: Cliente HTTP asíncrono para llamadas a APIs
+- **Tweepy**: Librería para X (Twitter) API (opcional)
 - **httpx**: Cliente HTTP asíncrono
 
 ## 🔌 Integración con APIs
@@ -228,11 +269,13 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### Cambiar a PostgreSQL (Producción)
 
 1. Instalar driver PostgreSQL:
+
 ```bash
 pip install psycopg2-binary
 ```
 
 2. Actualizar `DATABASE_URL` en `.env`:
+
 ```env
 DATABASE_URL=postgresql://usuario:contraseña@localhost/social_listening
 ```
