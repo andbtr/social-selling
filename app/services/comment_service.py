@@ -10,9 +10,13 @@ class CommentService:
     """Service for managing comments."""
     
     @staticmethod
-    def create_comment(db: Session, comment: CommentCreate) -> Comment:
-        """Create a new comment."""
-        db_comment = Comment(**comment.model_dump())
+    def create_comment(db: Session, comment) -> Comment:
+        # Solo columnas reales del modelo
+        allowed = {c.name for c in Comment.__table__.columns}
+        data = comment.model_dump() if hasattr(comment, "model_dump") else dict(comment)
+        filtered = {k: v for k, v in data.items() if k in allowed}
+
+        db_comment = Comment(**filtered)
         db.add(db_comment)
         db.commit()
         db.refresh(db_comment)
