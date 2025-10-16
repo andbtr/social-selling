@@ -1,7 +1,7 @@
 from datetime import datetime
 from tokenize import Double
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Enum as SQLEnum
 from sqlalchemy.sql import func
 from app.core.database import Base
 import enum
@@ -30,6 +30,10 @@ class Comment(Base):
     post_url = Column(String(512), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     platform_created_at = Column(DateTime(timezone=True), nullable=True)
+    sentiment_analized = Column(Boolean, default=False)
+    sentiment_analized_at = Column(DateTime(timezone=True), nullable=True)
+    sentiment = Column(String(5), nullable=True)
+    sentiment_confidence = Column(Float, nullable=True)
 
     def __repr__(self):
         return f"<Comment(id={self.id}, platform={self.platform}, author={self.author})>"

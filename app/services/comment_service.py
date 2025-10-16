@@ -4,6 +4,8 @@ from app.schemas.comment import CommentCreate
 from typing import Optional, List
 
 from app.services.post_service import PostService
+from app.services.sentiment_service import analize_sentiment
+from datetime import datetime
 
 
 class CommentService:
@@ -20,6 +22,17 @@ class CommentService:
         db.add(db_comment)
         db.commit()
         db.refresh(db_comment)
+
+        label, score = analize_sentiment(db_comment.content)
+        print(db_comment.sentiment, db_comment.sentiment_confidence)
+        db_comment.sentiment = label
+        db_comment.sentiment_confidence = score
+        db_comment.sentiment_analized = True
+        db_comment.sentiment_analized_at = datetime.utcnow()
+        print(db_comment.sentiment, db_comment.sentiment_confidence)
+        db.commit()
+        db.refresh(db_comment)
+
         return db_comment
     
     @staticmethod
@@ -74,3 +87,4 @@ class CommentService:
                             created_at=item.get("timestamp")
                         )
                         CommentService.create_comment(db, comment_in)
+

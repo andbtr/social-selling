@@ -33,6 +33,9 @@ if [ ! -f ".env" ]; then
     echo "⚠️  Please update .env with your API credentials"
 fi
 
+
+echo "🔄 Applying Alembic migrations..."
+alembic upgrade head
 echo ""
 echo "✅ Setup complete!"
 echo ""
