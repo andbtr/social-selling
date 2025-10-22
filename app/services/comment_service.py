@@ -3,17 +3,36 @@ from app.models.comment import Comment
 from app.schemas.comment import CommentCreate
 from typing import Optional, List
 
+from app.services.post_service import PostService
+from app.services.sentiment_service import analize_sentiment
+from datetime import datetime
+
 
 class CommentService:
     """Service for managing comments."""
     
     @staticmethod
-    def create_comment(db: Session, comment: CommentCreate) -> Comment:
-        """Create a new comment."""
-        db_comment = Comment(**comment.model_dump())
+    def create_comment(db: Session, comment) -> Comment:
+        # Solo columnas reales del modelo
+        allowed = {c.name for c in Comment.__table__.columns}
+        data = comment.model_dump() if hasattr(comment, "model_dump") else dict(comment)
+        filtered = {k: v for k, v in data.items() if k in allowed}
+
+        db_comment = Comment(**filtered)
         db.add(db_comment)
         db.commit()
         db.refresh(db_comment)
+
+        label, score = analize_sentiment(db_comment.content)
+        print(db_comment.sentiment, db_comment.sentiment_confidence)
+        db_comment.sentiment = label
+        db_comment.sentiment_confidence = score
+        db_comment.sentiment_analized = True
+        db_comment.sentiment_analized_at = datetime.utcnow()
+        print(db_comment.sentiment, db_comment.sentiment_confidence)
+        db.commit()
+        db.refresh(db_comment)
+
         return db_comment
     
     @staticmethod
@@ -46,3 +65,26 @@ class CommentService:
         if platform:
             query = query.filter(Comment.platform == platform)
         return query.count()
+
+    @staticmethod
+    def fetch_and_store_comments_for_all_posts(db, access_token):
+        posts = PostService.get_all_posts(db)
+        for post in posts:
+            # Replace with actual Meta API endpoint and parameters
+            url = f"https://graph.facebook.com/v19.0/{post.platform_id}/comments"
+            params = {"access_token": access_token}
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                for item in data:
+                    if not CommentService.get_comment_by_platform_id(db, item["id"]):
+                        comment_in = CommentCreate(
+                            platform_id=item["id"],
+                            post_id=post.id,
+                            text=item.get("text", ""),
+                            media_type="comment",
+                            platform="instagram",
+                            created_at=item.get("timestamp")
+                        )
+                        CommentService.create_comment(db, comment_in)
+
