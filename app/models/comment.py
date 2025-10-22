@@ -11,7 +11,6 @@ class PlatformType(str, enum.Enum):
     """Enum for social media platforms."""
     FACEBOOK = "facebook"
     INSTAGRAM = "instagram"
-    X = "x"
     TRIPADVISOR = "tripadvisor"
 
 
@@ -34,6 +33,10 @@ class Comment(Base):
     sentiment_analized_at = Column(DateTime(timezone=True), nullable=True)
     sentiment = Column(String(5), nullable=True)
     sentiment_confidence = Column(Float, nullable=True)
+    intention_analized = Column(Boolean, default=False)
+    intention_analized_at = Column(DateTime(timezone=True), nullable=True)
+    intention = Column(String(5), nullable=True)
+    intention_confidence = Column(Float, nullable=True)
 
     def __repr__(self):
         return f"<Comment(id={self.id}, platform={self.platform}, author={self.author})>"

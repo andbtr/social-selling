@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
 from app.api import comments_router, ingestion_router
-from app.api.x_api import router as x_api_router
 
 # Create FastAPI application
 app = FastAPI(
@@ -24,7 +23,6 @@ app.add_middleware(
 # Include routers
 app.include_router(comments_router)
 app.include_router(ingestion_router)
-app.include_router(x_api_router)
 
 
 @app.on_event("startup")

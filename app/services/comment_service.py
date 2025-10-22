@@ -5,7 +5,8 @@ from typing import Optional, List
 
 from app.services.post_service import PostService
 from app.services.sentiment_service import analize_sentiment
-from datetime import datetime
+from app.services.intention_service import analyze_intent
+from datetime import datetime, timezone
 
 
 class CommentService:
@@ -23,13 +24,17 @@ class CommentService:
         db.commit()
         db.refresh(db_comment)
 
-        label, score = analize_sentiment(db_comment.content)
-        print(db_comment.sentiment, db_comment.sentiment_confidence)
-        db_comment.sentiment = label
-        db_comment.sentiment_confidence = score
+        sentiment_label, sentiment_score = analize_sentiment(db_comment.content)
+        intention_label, intention_score = analyze_intent(db_comment.content)
+        db_comment.sentiment = sentiment_label
+        db_comment.sentiment_confidence = round(sentiment_score, 3)
         db_comment.sentiment_analized = True
-        db_comment.sentiment_analized_at = datetime.utcnow()
-        print(db_comment.sentiment, db_comment.sentiment_confidence)
+        db_comment.sentiment_analized_at = datetime.now(timezone.utc)
+        db_comment.intention = intention_label
+        db_comment.intention_confidence = round(intention_score, 3)
+        db_comment.intention_analized = True
+        db_comment.intention_analized_at = datetime.now(timezone.utc)
+        print(db_comment.sentiment, db_comment.sentiment_confidence, db_comment.intention, db_comment.intention_confidence)
         db.commit()
         db.refresh(db_comment)
 
@@ -87,4 +92,3 @@ class CommentService:
                             created_at=item.get("timestamp")
                         )
                         CommentService.create_comment(db, comment_in)
-
