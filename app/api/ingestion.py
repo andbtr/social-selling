@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas import PostCreate
@@ -136,19 +136,21 @@ async def ingest_x_replies(
 @router.post("/tripadvisor/{location_id}", response_model=List[CommentResponse])
 async def ingest_tripadvisor_reviews(
     location_id: str,
-    db: Session = Depends(get_db)
+    language: str = Query("en", pattern="^(en|es)$", description="Idioma de reviews: en|es"),
+    db: Session = Depends(get_db),
 ):
     """Ingest reviews from a TripAdvisor location."""
     try:
-        # Fetch reviews from TripAdvisor API
-        reviews_data = await TripAdvisorIngestionService.fetch_reviews(location_id)
-        
+        reviews_data = await TripAdvisorIngestionService.fetch_reviews(location_id, language=language)
+
         created_comments = []
         for review_data in reviews_data:
-            # Transform to internal format
             comment_dict = TripAdvisorIngestionService.transform_to_comment(review_data)
-            
-            # Check if already exists
+
+            # si no hay ID, no podemos deduplicar
+            if not comment_dict.get("platform_id"):
+                continue
+
             existing = CommentService.get_comment_by_platform_id(
                 db, comment_dict["platform_id"]
             )
@@ -157,7 +159,7 @@ async def ingest_tripadvisor_reviews(
                 comment = CommentCreate(**comment_dict)
                 db_comment = CommentService.create_comment(db, comment)
                 created_comments.append(db_comment)
-        
+
         return created_comments
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting TripAdvisor reviews: {str(e)}")
@@ -233,7 +235,7 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting Facebook comments: {str(e)}")
-    
+
 
 @router.post("/facebook/comments/{post_platform_id}", response_model=List[CommentResponse])
 async def ingest_facebook_comments_for_post(

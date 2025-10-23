@@ -12,10 +12,17 @@ class CommentBase(BaseModel):
     content: str = Field(..., min_length=1, description="Comment content")
     post_url: Optional[str] = None
     platform_created_at: Optional[datetime] = None
+    sentiment_analized: bool = False
+    sentiment_analized_at: Optional[datetime] = None
+    sentiment: Optional[str] = None
+    sentiment_confidence: Optional[float] = None
 
 class CommentCreate(CommentBase):
     """Schema for creating a comment."""
-    pass
+    sentiment_analized: Optional[bool] = None  # Exclude or make optional if not set during creation
+    sentiment_analized_at: Optional[datetime] = None
+    sentiment: Optional[str] = None
+    sentiment_confidence: Optional[float] = None
 
 
 class CommentResponse(CommentBase):
