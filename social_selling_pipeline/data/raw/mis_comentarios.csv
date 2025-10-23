@@ -1,0 +1,7 @@
+id,platform,platform_id,id_comment_platform,author,content,rating,post_url,created_at,platform_created_at
+FB-0001,facebook,FBP-101,CMT-1,María Pérez,"Me encantó el servicio 😍 volveré pronto",,https://example.com/p/101,2025-10-10 14:20:00,2025-10-10 14:19:50
+FB-0002,facebook,FBP-102,CMT-2,Carlos R.,"La atención fue lenta, podrían mejorar.",,https://example.com/p/102,2025-10-11 09:05:12,
+IG-0001,instagram,IGP-201,CMT-3,@viajesperu,"Fotos increíbles del hotel ✨ #recomendado",,https://example.com/ig/201,,2025-10-08 18:03:00
+IG-0002,instagram,IGP-202,CMT-4,@foodielima,"¿Tienen opciones sin gluten?",,https://example.com/ig/202,2025-10-09 12:00:00,2025-10-09 11:59:40
+TA-0001,tripadvisor,TAP-301,,Ana M,"Habitación impecable y personal amable.",5,https://example.com/ta/301,2025-10-07 20:15:30,2025-10-07 20:10:00
+TA-0002,tripadvisor,TAP-302,,Luis G,"Ruido por la noche, pero buen desayuno.",4,https://example.com/ta/302,,2025-10-06 07:45:00
