@@ -1,5 +1,22 @@
 # API Quick Reference
 
+## 🔐 Authentication Endpoints (NEW)
+
+### OAuth Meta
+
+- `GET /auth/meta/login` - Initiate Meta OAuth flow (redirect to Facebook)
+- `GET /auth/meta/callback` - Meta callback (automatic) - receives authorization code
+- `GET /auth/meta/status` - Check if Meta credentials are stored
+
+**Quick Start**:
+1. Open in browser: `http://localhost:8000/auth/meta/login`
+2. Authorize in Meta/Facebook
+3. Check status: `curl http://localhost:8000/auth/meta/status`
+
+**For detailed guide see**: [META_OAUTH_SETUP.md](META_OAUTH_SETUP.md)
+
+---
+
 ## Endpoints
 
 ### Health & Documentation

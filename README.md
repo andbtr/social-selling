@@ -51,9 +51,10 @@ Edita el archivo `.env` con tus credenciales de API:
 ```env
 DATABASE_URL=sqlite:///./social_listening.db
 
-# Meta (Facebook/Instagram) API
-META_API_KEY=tu_clave_api_meta
-META_API_SECRET=tu_secreto_api_meta
+# Meta OAuth (Recomendado - Autenticación automática)
+META_APP_ID=tu_meta_app_id
+META_APP_SECRET=tu_meta_app_secret
+META_REDIRECT_URI=http://localhost:8000/auth/meta/callback
 
 # X (Twitter) API v2 - Free Tier
 X_BEARER_TOKEN=tu_bearer_token_de_x
@@ -61,6 +62,8 @@ X_BEARER_TOKEN=tu_bearer_token_de_x
 # TripAdvisor API
 TRIPADVISOR_API_KEY=tu_clave_api_tripadvisor
 ```
+
+**Para configurar Meta OAuth automáticamente**: Ver [META_OAUTH_SETUP.md](META_OAUTH_SETUP.md) para instrucciones detalladas.
 
 **Para configurar X API**: Ver [X_API_GUIDE.md](X_API_GUIDE.md) para instrucciones detalladas.
 
@@ -90,7 +93,20 @@ La API estará disponible en: `http://localhost:8000`
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-### Endpoints Principales
+#### Endpoints Principales
+
+#### Authentication (OAuth)
+
+```http
+# Iniciar autenticación OAuth con Meta
+GET /auth/meta/login
+
+# Callback automático después de autorización
+GET /auth/meta/callback?code=...
+
+# Verificar status de autenticación
+GET /auth/meta/status
+```
 
 #### Health Check
 
@@ -145,6 +161,20 @@ GET /x/users/{user_id}/tweets
 
 ### Ejemplo de Uso
 
+#### Autenticar con Meta OAuth (Recomendado)
+
+1. **Abre en tu navegador**:
+   ```
+   http://localhost:8000/auth/meta/login
+   ```
+
+2. **Autoriza la aplicación** en Meta
+
+3. **Verifica que se guardaron las credenciales**:
+   ```bash
+   python check_auth_status.py
+   ```
+
 #### Ingestar comentarios de Meta
 
 ```bash
@@ -173,11 +203,12 @@ social-selling/
 │   └── env.py
 ├── app/
 │   ├── api/             # Endpoints de la API
+│   │   ├── auth.py      # 🆕 Autenticación OAuth Meta
 │   │   ├── comments.py
 │   │   ├── ingestion.py
 │   │   └── x_api.py     # 🆕 Endpoints de X API
 │   ├── core/            # Configuración central
-│   │   ├── config.py
+│   │   ├── config.py    # ✏️ Carga credenciales OAuth
 │   │   └── database.py
 │   ├── models/          # Modelos SQLAlchemy
 │   │   └── comment.py
@@ -186,13 +217,18 @@ social-selling/
 │   └── services/        # Lógica de negocio
 │       ├── comment_service.py
 │       ├── ingestion_service.py
-│       └── x_api_service.py  # 🆕 Servicio de X API
+│       ├── meta_auth_service.py  # Servicio OAuth Meta
+│       └── x_api_service.py      # 🆕 Servicio de X API
+├── storage.json         # 🆕 Credenciales OAuth guardadas (no subir a Git)
 ├── main.py              # Punto de entrada de la aplicación
 ├── requirements.txt     # Dependencias
-├── .env.example        # Plantilla de configuración
-├── API_REFERENCE.md    # Referencia rápida de API
-├── X_API_GUIDE.md      # 🆕 Guía completa de X API
-├── test_x_api.py       # 🆕 Tests para X API
+├── check_auth_status.py # 🆕 Script para verificar autenticación
+├── .env.example         # Plantilla de configuración
+├── API_REFERENCE.md     # Referencia rápida de API
+├── X_API_GUIDE.md       # 🆕 Guía completa de X API
+├── META_OAUTH_SETUP.md  # 🆕 Guía de autenticación OAuth Meta
+├── CAMBIOS_OAUTH.md     # 🆕 Resumen de cambios implementados
+├── test_x_api.py        # 🆕 Tests para X API
 └── README.md
 ```
 
@@ -209,13 +245,22 @@ social-selling/
 
 ## 🔌 Integración con APIs
 
-### Meta (Facebook/Instagram)
+### Meta (Facebook/Instagram) - OAuth Automático ✨
 
-La integración actual incluye una implementación mock. Para usar la API real:
+La integración ahora incluye **autenticación OAuth automática**:
 
-1. Obtén credenciales en [Meta for Developers](https://developers.facebook.com/)
-2. Actualiza `META_API_KEY` y `META_API_SECRET` en `.env`
-3. Implementa la llamada real en `app/services/ingestion_service.py`
+1. Configura `META_APP_ID`, `META_APP_SECRET` en `.env`
+2. Abre `http://localhost:8000/auth/meta/login` en el navegador
+3. Autoriza la aplicación en Meta
+4. Las credenciales se guardan automáticamente en `storage.json`
+5. La aplicación las carga automáticamente al iniciar
+
+**Ver guía completa**: [META_OAUTH_SETUP.md](META_OAUTH_SETUP.md)
+
+**Verificar estado**: 
+```bash
+python check_auth_status.py
+```
 
 ### X (Twitter)
 
