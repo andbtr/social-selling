@@ -22,7 +22,7 @@ router = APIRouter(prefix="/ingest", tags=["Data Ingestion"])
 async def ingest_instagram_posts(db: Session = Depends(get_db)):
     try:
         # Fetch posts from Meta IG API
-        posts_data = await InstagramIngestionService.fetch_instagram_posts()
+        posts_data = await InstagramIngestionService.fetch_instagram_posts(db)
 
         created_posts = []
         for post_data in posts_data:
@@ -48,13 +48,13 @@ async def ingest_instagram_posts(db: Session = Depends(get_db)):
 async def ingest_instagram_comments(db: Session = Depends(get_db)):
     try:
         # Fetch all posts
-        posts = await InstagramIngestionService.fetch_instagram_posts()
+        posts = await InstagramIngestionService.fetch_instagram_posts(db)
         created_comments = []
 
         for post in posts:
             post_id = post["id"]
             # Fetch comments for each post
-            comments_data = await InstagramIngestionService.fetch_comments(post_id)
+            comments_data = await InstagramIngestionService.fetch_comments(db, post_id)
             for comment_data in comments_data:
                 # Transform to internal format
                 comment_dict = InstagramIngestionService.transform_to_comment(comment_data)
@@ -81,7 +81,7 @@ async def ingest_meta_comments(
     """Ingest comments from a Meta (Facebook/Instagram) post."""
     try:
         # Fetch comments from Meta API
-        comments_data = await MetaIngestionService.fetch_comments(post_id)
+        comments_data = await MetaIngestionService.fetch_comments(db, post_id)
         
         created_comments = []
         for comment_data in comments_data:
@@ -171,7 +171,7 @@ async def ingest_facebook_posts(db: Session = Depends(get_db)):
     """
     try:
         # 1) Traer posts desde Graph API (servicio FB)
-        posts_data = FacebookIngestionService.fetch_posts()
+        posts_data = await FacebookIngestionService.fetch_posts(db)
 
         created_posts = []
         for p in posts_data:
@@ -207,11 +207,11 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
         created_comments = []
 
         # 1) Traemos los posts (del Graph, no de la DB, para asegurar que existan)
-        posts_data = FacebookIngestionService.fetch_posts()
+        posts_data = await FacebookIngestionService.fetch_posts(db)
 
         for p in posts_data:
             post_id = p["id"]
-            comments_data = FacebookIngestionService.fetch_comments(post_id)
+            comments_data = await FacebookIngestionService.fetch_comments(db, post_id)
 
             for c in comments_data:
                 comment_dict = {
@@ -248,7 +248,7 @@ async def ingest_facebook_comments_for_post(
     try:
         created_comments = []
 
-        comments_data = FacebookIngestionService.fetch_comments(post_platform_id)
+        comments_data = await FacebookIngestionService.fetch_comments(db, post_platform_id)
         # Si quieres, intenta obtener el permalink del post llamando a /{id}?fields=permalink_url
         post_permalink = None
 

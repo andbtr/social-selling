@@ -1,6 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import RedirectResponse
+from sqlalchemy.orm import Session
+from typing import Optional
+
 from app.services.meta_auth_service import MetaAuthService
+from app.core.database import get_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -16,7 +20,7 @@ async def meta_login():
 
 
 @router.get("/meta/callback", tags=["Meta OAuth"])
-async def meta_callback(code: str = Query(...), state: str = Query(None)):
+async def meta_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
     """
     Handles the callback from Meta after user authorization.
     Exchanges the authorization code for an access token and stores credentials.
@@ -24,37 +28,29 @@ async def meta_callback(code: str = Query(...), state: str = Query(None)):
     if not code:
         raise HTTPException(status_code=400, detail="No authorization code provided")
     
-    token = MetaAuthService.exchange_code_for_token(code)
+    token = MetaAuthService.exchange_code_for_token(db, code)
     if not token:
         raise HTTPException(status_code=400, detail="Failed to exchange code for token")
     
-    # Credentials are automatically saved in storage.json by exchange_code_for_token
-    return JSONResponse(
-        status_code=200,
-        content={
-            "message": "Successfully authenticated with Meta",
-            "status": "credentials_saved",
-            "details": "Your credentials have been securely stored. You can now use the ingestion endpoints."
-        }
-    )
+    # Redirect to the status page for a better user experience
+    return RedirectResponse(url="/auth/meta/status")
 
 
 @router.get("/meta/status", tags=["Meta OAuth"])
-async def meta_status():
+async def meta_status(db: Session = Depends(get_db)):
     """
     Check if Meta credentials are already stored and valid.
     """
-    credentials = MetaAuthService.get_credentials()
+    credentials = MetaAuthService.get_credentials_from_db(db)
     if credentials:
         return {
             "status": "authenticated",
-            "has_credentials": True,
-            "page_id": credentials.get("fb_page_id"),
-            "ig_account_id": credentials.get("ig_business_account_id")
+            "fb_page_id": credentials.get("fb_page_id"),
+            "ig_business_account_id": credentials.get("ig_business_account_id"),
+            "message": "Meta credentials found in database."
         }
     else:
         return {
             "status": "not_authenticated",
-            "has_credentials": False,
-            "message": "Please visit /auth/meta/login to authenticate"
+            "message": "No Meta credentials found in database. Please visit /auth/meta/login to authenticate."
         }

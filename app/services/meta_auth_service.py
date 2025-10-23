@@ -1,19 +1,35 @@
-
 import httpx
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
+from sqlalchemy.orm import Session
+import urllib.parse
+from cryptography.fernet import Fernet
 
 from app.core.config import settings
-
-# Define the path for our persistent storage file
-STORAGE_PATH = Path(__file__).parent.parent.parent / "storage.json"
+from app.models.meta_credentials import MetaCredentials
+from app.core.database import get_db # Necesitamos el generador de sesiones
 
 class MetaAuthService:
     """
     Handles Meta (Facebook/Instagram) OAuth2 flow and token management.
     """
     BASE_URL = "https://graph.facebook.com/v23.0"
+    _fernet: Fernet = None
+
+    @classmethod
+    def _get_fernet(cls) -> Fernet:
+        if cls._fernet is None:
+            cls._fernet = Fernet(settings.encryption_key.encode('utf-8'))
+        return cls._fernet
+
+    @classmethod
+    def _encrypt(cls, data: str) -> str:
+        return cls._get_fernet().encrypt(data.encode('utf-8')).decode('utf-8')
+
+    @classmethod
+    def _decrypt(cls, data: str) -> str:
+        return cls._get_fernet().decrypt(data.encode('utf-8')).decode('utf-8')
 
     @staticmethod
     def get_auth_url() -> str:
@@ -22,7 +38,6 @@ class MetaAuthService:
         """
         scopes = [
             "public_profile",
-            "email",
             "pages_show_list",
             "instagram_basic",
             "instagram_manage_comments",
@@ -34,25 +49,74 @@ class MetaAuthService:
             "scope": ",".join(scopes),
             "response_type": "code",
         }
-        auth_url = f"https://www.facebook.com/v23.0/dialog/oauth?{httpx.URL(params).query.decode('utf-8')}"
+        query_string = urllib.parse.urlencode(params)
+        auth_url = f"https://www.facebook.com/v23.0/dialog/oauth?{query_string}"
         return auth_url
 
     @staticmethod
-    def _save_credentials(credentials: Dict[str, Any]):
-        """Saves credentials to the storage file."""
-        with open(STORAGE_PATH, "w") as f:
-            json.dump(credentials, f, indent=4)
+    def _save_credentials_to_db(db: Session, credentials: Dict[str, Any]):
+        """Saves or updates credentials in the database."""
+        encrypted_token = MetaAuthService._encrypt(credentials["user_access_token"])
+        
+        # Siempre guardamos una única entrada de credenciales activas
+        db_credentials = db.query(MetaCredentials).first()
+        if db_credentials:
+            db_credentials.encrypted_access_token = encrypted_token
+            db_credentials.fb_page_id = credentials.get("fb_page_id")
+            db_credentials.ig_business_account_id = credentials.get("ig_business_account_id")
+        else:
+            db_credentials = MetaCredentials(
+                encrypted_access_token=encrypted_token,
+                fb_page_id=credentials.get("fb_page_id"),
+                ig_business_account_id=credentials.get("ig_business_account_id"),
+            )
+            db.add(db_credentials)
+        db.commit()
+        db.refresh(db_credentials)
+        print("Credentials successfully saved/updated in the database.")
 
     @staticmethod
-    def get_credentials() -> Optional[Dict[str, Any]]:
-        """Loads credentials from the storage file."""
-        if not STORAGE_PATH.exists():
+    def get_credentials_from_db(db: Session) -> Optional[Dict[str, Any]]:
+        """Loads credentials from the database."""
+        db_credentials = db.query(MetaCredentials).first()
+        if not db_credentials:
             return None
-        with open(STORAGE_PATH, "r") as f:
-            return json.load(f)
+        
+        decrypted_token = MetaAuthService._decrypt(db_credentials.encrypted_access_token)
+        return {
+            "user_access_token": decrypted_token,
+            "fb_page_id": db_credentials.fb_page_id,
+            "ig_business_account_id": db_credentials.ig_business_account_id,
+        }
 
     @staticmethod
-    def exchange_code_for_token(code: str) -> Optional[str]:
+    def _get_long_lived_token(short_lived_token: str) -> Optional[str]:
+        """Exchanges a short-lived token for a long-lived one."""
+        url = f"{MetaAuthService.BASE_URL}/oauth/access_token"
+        params = {
+            "grant_type": "fb_exchange_token",
+            "client_id": settings.meta_app_id,
+            "client_secret": settings.meta_app_secret,
+            "fb_exchange_token": short_lived_token,
+        }
+        try:
+            with httpx.Client() as client:
+                response = client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                long_lived_token = data.get("access_token")
+                if not long_lived_token:
+                    print("Error: Long-lived token not found in response.")
+                    return None
+                print("Successfully obtained a long-lived access token.")
+                return long_lived_token
+        except httpx.HTTPStatusError as e:
+            print(f"Error exchanging short-lived token for long-lived token: {e.response.text}")
+            return None
+
+
+    @staticmethod
+    def exchange_code_for_token(db: Session, code: str) -> Optional[str]:
         """
         Exchanges an authorization code for a long-lived access token and stores it.
         """
@@ -69,21 +133,27 @@ class MetaAuthService:
                 response = client.get(url, params=params)
                 response.raise_for_status()
                 data = response.json()
-                
-                long_lived_token = data.get("access_token")
-                if not long_lived_token:
+
+                short_lived_token = data.get("access_token")
+                if not short_lived_token:
+                    print("Error: Short-lived token not found in initial exchange.")
                     return None
 
+                # Exchange the short-lived token for a long-lived one
+                long_lived_token = MetaAuthService._get_long_lived_token(short_lived_token)
+                if not long_lived_token:
+                    return None # Error already printed in the helper function
+
                 # Discover and save assets
-                MetaAuthService.discover_and_store_assets(long_lived_token)
+                MetaAuthService.discover_and_store_assets(db, long_lived_token)
                 
                 return long_lived_token
         except httpx.HTTPStatusError as e:
-            print(f"Error exchanging code for token: {e.response.text}")
+            print(f"Error exchanging code for short-lived token: {e.response.text}")
             return None
 
     @staticmethod
-    def discover_and_store_assets(user_access_token: str):
+    def discover_and_store_assets(db: Session, user_access_token: str):
         """
         Discovers Facebook Pages and linked Instagram accounts, then stores them.
         """
@@ -117,7 +187,7 @@ class MetaAuthService:
                                 "fb_page_id": page_id,
                                 "ig_business_account_id": ig_account_id,
                             }
-                            MetaAuthService._save_credentials(credentials)
+                            MetaAuthService._save_credentials_to_db(db, credentials)
                             print(f"Successfully found and stored credentials for page {page_id} and IG account {ig_account_id}")
                             return
 
@@ -125,4 +195,3 @@ class MetaAuthService:
 
         except httpx.HTTPStatusError as e:
             print(f"Error discovering assets: {e.response.text}")
-
