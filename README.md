@@ -78,7 +78,7 @@ alembic upgrade head
 6. **Ejecutar la aplicación**
 
 ```bash
-uvicorn main:app --reload
+uvicorn main:app --reload --reload-exclude 'venv' --reload-exclude 'venv/Lib/site-packages'
 ```
 
 La API estará disponible en: `http://localhost:8000`

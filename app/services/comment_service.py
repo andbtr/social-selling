@@ -3,6 +3,7 @@ from app.models.comment import Comment
 from app.schemas.comment import CommentCreate
 from typing import Optional, List
 
+from app.services.lead_scoring_service import LeadScoringService
 from app.services.post_service import PostService
 from app.services.sentiment_service import analize_sentiment
 from app.services.intention_service import analyze_intent
@@ -37,6 +38,13 @@ class CommentService:
         print(db_comment.sentiment, db_comment.sentiment_confidence, db_comment.intention, db_comment.intention_confidence)
         db.commit()
         db.refresh(db_comment)
+
+        # calcular y guardar lead score automáticamente
+        try:
+            LeadScoringService.compute_and_upsert(db, db_comment.id)
+        except Exception as e:
+            # loggear; no romper creación del comment
+            print(f"[lead-scoring] error: {e}")
 
         return db_comment
     
