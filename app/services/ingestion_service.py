@@ -1,46 +1,50 @@
 import httpx
 from typing import List, Dict, Any
 
-from fastapi import requests
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
 from app.services.post_service import PostService
 from app.core.config import settings
 from datetime import datetime
 import json
+
+from app.services.meta_auth_service import MetaAuthService
+
+
+def _get_meta_credentials(db: Session) -> Dict[str, Any]:
+    """Helper to fetch Meta credentials from the database via MetaAuthService."""
+    credentials = MetaAuthService.get_credentials_from_db(db)
+    if not credentials or not credentials.get("user_access_token"):
+        raise HTTPException(
+            status_code=401,
+            detail="Meta credentials not found or invalid. Please authenticate via /auth/meta/login.",
+        )
+    return credentials
 
 
 class InstagramIngestionService:
     BASE_URL = "https://graph.facebook.com/v23.0"
 
     @staticmethod
-    async def fetch_instagram_posts():
+    async def fetch_instagram_posts(db: Session):
+        """Fetches posts from the configured Instagram Business Account."""
+        credentials = _get_meta_credentials(db)
+        ig_account_id = credentials.get("ig_business_account_id")
+        access_token = credentials.get("user_access_token")
+
+        if not ig_account_id:
+            raise HTTPException(status_code=404, detail="Instagram Business Account ID not found in credentials.")
+
         async with httpx.AsyncClient() as client:
-            url = f"{InstagramIngestionService.BASE_URL}/{settings.instagram_business_account_id}/media"
+            url = f"{InstagramIngestionService.BASE_URL}/{ig_account_id}/media"
             params = {
-                "access_token": settings.meta_ig_access_token,
+                "access_token": access_token,
                 "fields": "id,caption,media_type,media_url,timestamp"
             }
             response = await client.get(url, params=params)
             response.raise_for_status()
             return response.json().get("data", [])
-
-    @staticmethod
-    def ingest_instagram_posts():
-        posts_data = fetch_instagram_posts()
-        db = SessionLocal()
-        for post in posts_data:
-            db_post = Post(
-                platform="instagram",
-                platform_id=post["id"],
-                text=post.get("caption", ""),
-                media_type=post.get("media_type"),
-                media_url=post.get("media_url"),
-                platform_created_at=post.get("timestamp")
-            )
-            db.add(db_post)
-        db.commit()
-        db.close()
 
     @staticmethod
     def transform_to_post(post_data: dict) -> dict:
@@ -56,21 +60,15 @@ class InstagramIngestionService:
         }
 
     @staticmethod
-    async def fetch_all_instagram_comments(access_token: str):
-        posts = await InstagramIngestionService.fetch_instagram_posts()
-        comments = []
-        for post in posts:
-            post_id = post["id"]
-            post_comments = await InstagramIngestionService.fetch_comments(post_id)
-        comments.extend(post_comments)
-        return comments
+    async def fetch_comments(db: Session, post_id: str):
+        """Fetches comments for a specific Instagram media ID."""
+        credentials = _get_meta_credentials(db)
+        access_token = credentials.get("user_access_token")
 
-    @staticmethod
-    async def fetch_comments(post_id: str):
         async with httpx.AsyncClient() as client:
             url = f"{InstagramIngestionService.BASE_URL}/{post_id}/comments"
             params = {
-                "access_token": settings.meta_ig_access_token,
+                "access_token": access_token,
                 "fields": "id,text,username,timestamp"
             }
             r = await client.get(url, params=params)
@@ -96,31 +94,19 @@ class MetaIngestionService:
     BASE_URL = "https://graph.facebook.com/v18.0"
     
     @staticmethod
-    async def fetch_comments(post_id: str) -> List[Dict[str, Any]]:
+    async def fetch_comments(db: Session, post_id: str) -> List[Dict[str, Any]]:
         """
         Fetch comments from a Meta post.
-        
-        Note: This is a mock implementation. Replace with actual Meta API calls.
         """
-        # Mock implementation - replace with actual API call
-        # Example:
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.get(
-        #         f"{MetaIngestionService.BASE_URL}/{post_id}/comments",
-        #         params={"access_token": settings.meta_api_key}
-        #     )
-        #     data = response.json()
-        #     return data.get("data", [])
-        
-        return [
-            {
-                "id": f"meta_{post_id}_1",
-                "from": {"name": "Example User", "id": "123456"},
-                "message": "This is a sample comment from Meta",
-                "created_time": datetime.now().isoformat(),
-                "permalink_url": f"https://facebook.com/{post_id}"
-            }
-        ]
+        credentials = _get_meta_credentials(db)
+        access_token = credentials.get("user_access_token")
+
+        async with httpx.AsyncClient() as client:
+            url = f"{MetaIngestionService.BASE_URL}/{post_id}/comments"
+            params = {"access_token": access_token, "fields": "id,from,message,created_time,permalink_url"}
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            return response.json().get("data", [])
     
     @staticmethod
     def transform_to_comment(comment_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,50 +254,39 @@ class FacebookIngestionService:
     BASE_URL = "https://graph.facebook.com/v23.0"
 
     @staticmethod
-    def _page_token() -> str:
-        """
-        Lee el token desde settings o variables de entorno.
-        Evita el caso donde settings.fb_access_token venga vacío.
-        """
-        import os
-        token = (
-            getattr(settings, "fb_access_token", "")               # alias que agregamos en Settings
-            or getattr(settings, "meta_fb_access_token", "")       # nombre original en Settings
-            or os.environ.get("META_FB_ACCESS_TOKEN", "")          # por si el sistema tiene la var
-        )
-        if not token:
-            # Deja este error claro para no seguir llamando al Graph sin token
-            raise RuntimeError("Facebook access token is empty. Check .env (META_FB_ACCESS_TOKEN).")
-        return token
+    async def fetch_posts(db: Session, limit: int = 50):
+        """Fetches posts from the configured Facebook Page."""
+        credentials = _get_meta_credentials(db)
+        page_id = credentials.get("fb_page_id")
+        access_token = credentials.get("user_access_token")
 
-    @staticmethod
-    def _get(url: str, params: dict):
-        resp = httpx.get(url, params=params, timeout=30)
-        resp.raise_for_status()
-        return resp.json()
+        if not page_id:
+            raise HTTPException(status_code=404, detail="Facebook Page ID not found in credentials.")
 
-    @staticmethod
-    def fetch_posts(page_id: str | None = None, limit: int = 50):
-        access_token = FacebookIngestionService._page_token()
-        page_id = page_id or settings.fb_page_id
         url = f"{FacebookIngestionService.BASE_URL}/{page_id}/posts"
         params = {
             "fields": "id,message,created_time,permalink_url",
             "limit": limit,
             "access_token": access_token,
         }
-        data = FacebookIngestionService._get(url, params)
-        return data.get("data", [])
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            return response.json().get("data", [])
 
     @staticmethod
-    def fetch_comments(post_platform_id: str, limit: int = 100):
-        access_token = FacebookIngestionService._page_token()
+    async def fetch_comments(db: Session, post_platform_id: str, limit: int = 100):
+        """Fetches comments for a specific Facebook post ID."""
+        credentials = _get_meta_credentials(db)
+        access_token = credentials.get("user_access_token")
+
         url = f"{FacebookIngestionService.BASE_URL}/{post_platform_id}/comments"
         params = {
             "fields": "id,from,message,created_time",
             "limit": limit,
             "access_token": access_token,
         }
-        data = FacebookIngestionService._get(url, params)
-        return data.get("data", [])
-
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            return response.json().get("data", [])

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Enum as SQLEnum
 from sqlalchemy.sql import func
 from app.core.database import Base
-from app.models import PlatformType
+from .comment import platform_type_enum
 import enum
 
 class Post(Base):
@@ -10,7 +10,7 @@ class Post(Base):
     __tablename__ = "posts"
 
     id = Column(Integer, primary_key=True, index=True)
-    platform = Column(SQLEnum(PlatformType), nullable=False, index=True)
+    platform = Column(platform_type_enum, nullable=False, index=True)
     platform_id = Column(String(255), unique=True, index=True, nullable=False)
     text = Column(Text, nullable=False)
     media_type = Column(String)
