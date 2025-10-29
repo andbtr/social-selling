@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
 from app.api import comments_router, ingestion_router, auth_router, lead_scoring_router
+from app.api.social_selling import router as social_router
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -10,6 +12,7 @@ app = FastAPI(
     version=settings.app_version,
     description="Social Listening Platform for ingesting and analyzing comments from Meta, X, and TripAdvisor",
 )
+
 
 # Configure CORS
 app.add_middleware(
@@ -25,6 +28,7 @@ app.include_router(comments_router)
 app.include_router(ingestion_router)
 app.include_router(lead_scoring_router)
 app.include_router(auth_router)
+app.include_router(social_router)
 
 @app.on_event("startup")
 async def startup_event():

@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True, env="DEBUG")
 
     encryption_key: str = Field(..., env="ENCRYPTION_KEY")
+    api_key: str = Field(default="dev-key", env="API_KEY")
 
     class Config:
         env_file = ".env"
