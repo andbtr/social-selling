@@ -1,21 +1,20 @@
-"""update comments
+"""update comments table
 
-Revision ID: 56900ae8f390
-Revises:
-Create Date: 2025-10-16 02:21:08.590121
+Revision ID: 05656722da5c
+Revises: 56900ae8f390
+Create Date: 2025-10-22 10:56:56.920354
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-# from sqlalchemy.dialects import postgresql  # (solo si vas a recrear 'posts' en downgrade)
+# from sqlalchemy.dialects import postgresql  # evita usar tipos específicos en SQLite
 
 # revision identifiers, used by Alembic.
-revision: str = "56900ae8f390"
-down_revision: Union[str, None] = None
+revision: str = "05656722da5c"
+down_revision: Union[str, None] = "56900ae8f390"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 # ---- helpers ---------------------------------------------------------------
 def _insp():
@@ -36,34 +35,34 @@ def _column_exists(table: str, column: str) -> bool:
 
 
 def upgrade() -> None:
-    # --- Drop índices/tabla 'posts' solo si existen (BD limpia no los tendrá) ---
+    # Evita dropear índices/tabla que puedan no existir en una BD limpia
     if _table_exists("posts"):
         for ix in ("ix_posts_id", "ix_posts_platform", "ix_posts_platform_id"):
             if _index_exists("posts", ix):
                 op.drop_index(ix, table_name="posts")
         op.drop_table("posts")
 
-    # --- Nuevas columnas en 'comments' (agregar solo si no existen) ---
-    if not _column_exists("comments", "sentiment_analized"):
-        op.add_column("comments", sa.Column("sentiment_analized", sa.Boolean(), nullable=True))
-    if not _column_exists("comments", "sentiment_analized_at"):
-        op.add_column("comments", sa.Column("sentiment_analized_at", sa.DateTime(timezone=True), nullable=True))
-    if not _column_exists("comments", "sentiment"):
-        op.add_column("comments", sa.Column("sentiment", sa.String(length=5), nullable=True))
-    if not _column_exists("comments", "sentiment_confidence"):
-        op.add_column("comments", sa.Column("sentiment_confidence", sa.Float(), nullable=True))
+    # Añade columnas en comments de forma idempotente
+    if not _column_exists("comments", "intention_analized"):
+        op.add_column("comments", sa.Column("intention_analized", sa.Boolean(), nullable=True))
+    if not _column_exists("comments", "intention_analized_at"):
+        op.add_column("comments", sa.Column("intention_analized_at", sa.DateTime(timezone=True), nullable=True))
+    if not _column_exists("comments", "intention"):
+        op.add_column("comments", sa.Column("intention", sa.String(length=5), nullable=True))
+    if not _column_exists("comments", "intention_confidence"):
+        op.add_column("comments", sa.Column("intention_confidence", sa.Float(), nullable=True))
 
 
 def downgrade() -> None:
-    # --- Quitar columnas si existen (defensivo) ---
-    if _column_exists("comments", "sentiment_confidence"):
-        op.drop_column("comments", "sentiment_confidence")
-    if _column_exists("comments", "sentiment"):
-        op.drop_column("comments", "sentiment")
-    if _column_exists("comments", "sentiment_analized_at"):
-        op.drop_column("comments", "sentiment_analized_at")
-    if _column_exists("comments", "sentiment_analized"):
-        op.drop_column("comments", "sentiment_analized")
+    # Quita columnas si existen (defensivo)
+    if _column_exists("comments", "intention_confidence"):
+        op.drop_column("comments", "intention_confidence")
+    if _column_exists("comments", "intention"):
+        op.drop_column("comments", "intention")
+    if _column_exists("comments", "intention_analized_at"):
+        op.drop_column("comments", "intention_analized_at")
+    if _column_exists("comments", "intention_analized"):
+        op.drop_column("comments", "intention_analized")
 
     if not _table_exists("posts"):
         op.create_table(

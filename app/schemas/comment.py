@@ -16,6 +16,10 @@ class CommentBase(BaseModel):
     sentiment_analized_at: Optional[datetime] = None
     sentiment: Optional[str] = None
     sentiment_confidence: Optional[float] = None
+    intention_analized: bool = False
+    intention_analized_at: Optional[datetime] = None
+    intention: Optional[str] = None
+    intention_confidence: Optional[float] = None
 
 class CommentCreate(CommentBase):
     """Schema for creating a comment."""
@@ -23,6 +27,10 @@ class CommentCreate(CommentBase):
     sentiment_analized_at: Optional[datetime] = None
     sentiment: Optional[str] = None
     sentiment_confidence: Optional[float] = None
+    intention_analized: bool = False
+    intention_analized_at: Optional[datetime] = None
+    intention: Optional[str] = None
+    intention_confidence: Optional[float] = None
 
 
 class CommentResponse(CommentBase):
