@@ -1,12 +1,13 @@
 # app/api/social_selling.py
 from fastapi import APIRouter, Depends, Header, HTTPException
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func, cast, Date, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.comment import Comment  # tu modelo real
+from app.models.lead_score import LeadScore
 
 router = APIRouter(prefix="/api/social-selling", tags=["social-selling"])
 
@@ -44,12 +45,60 @@ def _is_high_intention(val: str | None) -> bool:
 def pct_change(curr: float | int, prev: float | int) -> str:
     if prev in (0, None): return "0%" if not curr else "100%"
     return f"{((curr - prev) / prev) * 100:.0f}%"
+ 
+def q_window_comments(db: Session, dt_from: datetime, dt_to: datetime):
+   """
+   Query base filtrando comentarios por ventana de tiempo.
+   """
+   return db.query(Comment).filter(
+       Comment.platform_created_at >= dt_from,
+       Comment.platform_created_at < dt_to
+   )
 
-def q_window(db: Session, dt_from: datetime, dt_to: datetime):
-    return db.query(Comment).filter(
-        Comment.platform_created_at >= dt_from,
-        Comment.platform_created_at < dt_to
-    )
+def q_window_leads(db: Session, dt_from: datetime, dt_to: datetime):
+   """
+   Query base filtrando lead scores calculados en la ventana de tiempo.
+   Importante: usamos LeadScore.computed_at para la ventana.
+   """
+   return db.query(LeadScore).filter(
+       LeadScore.computed_at >= dt_from,
+       LeadScore.computed_at < dt_to
+   )
+
+def _count_sentiment(db: Session, dt_from: datetime, dt_to: datetime, kind: str):
+   """
+   kind in {"positive","neutral","negative"}
+   Cuenta cuántos comments en la ventana tienen ese sentimiento (normalizado).
+   Lo hacemos con un WHERE ... IN (...) porque así evitamos traer todo y normalizar en Python.
+   """
+   mapping = {
+       "positive": ("positive","pos","+","p","positivo","positiva"),
+       "neutral":  ("neutral","neu","=","n"),
+       "negative": ("negative","neg","-","g","negativo","negativa"),
+   }
+   return (
+       db.query(func.count())
+       .filter(
+           Comment.platform_created_at >= dt_from,
+           Comment.platform_created_at < dt_to,
+           func.lower(Comment.sentiment).in_(mapping[kind])
+       )
+       .scalar()
+   )
+
+def _count_hot_leads(db: Session, dt_from: datetime, dt_to: datetime):
+   """
+   Cuenta cuántos leads 'hot' hay en la ventana usando LeadScore.priority_level.
+   """
+   return (
+       db.query(func.count())
+       .filter(
+           LeadScore.computed_at >= dt_from,
+           LeadScore.computed_at < dt_to,
+           func.lower(LeadScore.priority_level) == "hot"
+       )
+       .scalar()
+   )
 
 # ---------- /stats ----------
 @router.get("/stats", dependencies=[Depends(require_api_key)])
@@ -60,8 +109,8 @@ def stats(period: str = "30d", platform: str = "all",
     window = dt_to - dt_from
     prev_from, prev_to = dt_from - window, dt_from
 
-    q  = q_window(db, dt_from, dt_to)
-    qp = q_window(db, prev_from, prev_to)
+    q  = q_window_comments(db, dt_from, dt_to)
+    qp = q_window_comments(db, prev_from, prev_to)
     if platform != "all":
         q  = q.filter(Comment.platform == platform)
         qp = qp.filter(Comment.platform == platform)
@@ -162,3 +211,163 @@ def mentions(period: str = "30d", platform: str = "all",
     } for r in rows]
 
     return {"items": items, "next_offset": offset + limit}
+
+# ---------- /summary-cards ----------
+@router.get("/summary-cards", dependencies=[Depends(require_api_key)])
+def summary_cards(
+   period: str = "7d",
+   startDate: str | None = None,
+   endDate: str | None = None,
+   db: Session = Depends(get_db)):
+   """
+   Respuesta ejemplo:
+   {
+     "positive": { "count":127, "trend":"+12%" },
+     "neutral":  { "count":34,  "trend":"+3%"  },
+     "negative": { "count":8,   "trend":"-5%"  },
+     "leads":    { "count":23,  "trend":"+9%"  }
+   }
+   """
+   dt_from, dt_to = resolve_period(period, startDate, endDate)
+   window = dt_to - dt_from
+   prev_from, prev_to = dt_from - window, dt_from
+   # ventana actual
+   c_pos_now = _count_sentiment(db, dt_from, dt_to, "positive")
+   c_neu_now = _count_sentiment(db, dt_from, dt_to, "neutral")
+   c_neg_now = _count_sentiment(db, dt_from, dt_to, "negative")
+   c_lead_now = _count_hot_leads(db, dt_from, dt_to)
+   # ventana anterior
+   c_pos_prev = _count_sentiment(db, prev_from, prev_to, "positive")
+   c_neu_prev = _count_sentiment(db, prev_from, prev_to, "neutral")
+   c_neg_prev = _count_sentiment(db, prev_from, prev_to, "negative")
+   c_lead_prev = _count_hot_leads(db, prev_from, prev_to)
+   return {
+       "positive": {
+           "count": c_pos_now,
+           "trend": pct_change(c_pos_now, c_pos_prev)
+       },
+       "neutral": {
+           "count": c_neu_now,
+           "trend": pct_change(c_neu_now, c_neu_prev)
+       },
+       "negative": {
+           "count": c_neg_now,
+           "trend": pct_change(c_neg_now, c_neg_prev)
+       },
+       "leads": {
+           "count": c_lead_now,
+           "trend": pct_change(c_lead_now, c_lead_prev)
+       },
+   }
+
+# ---------- /sentiment-distribution ----------
+@router.get("/sentiment-distribution", dependencies=[Depends(require_api_key)])
+def sentiment_distribution(
+   period: str = "7d",
+   startDate: str | None = None,
+   endDate: str | None = None,
+   db: Session = Depends(get_db)):
+   """
+   Devuelve:
+   {
+     "positive": { "count": X, "pct": Y },
+     "neutral":  { "count": A, "pct": B },
+     "negative": { "count": C, "pct": D }
+   }
+   pct en 0-100 redondeado.
+   """
+   dt_from, dt_to = resolve_period(period, startDate, endDate)
+   c_pos = _count_sentiment(db, dt_from, dt_to, "positive")
+   c_neu = _count_sentiment(db, dt_from, dt_to, "neutral")
+   c_neg = _count_sentiment(db, dt_from, dt_to, "negative")
+   total = c_pos + c_neu + c_neg
+   def pct(x: int, tot: int):
+       return round((x / tot) * 100) if tot else 0
+   return {
+       "positive": {"count": c_pos, "pct": pct(c_pos, total)},
+       "neutral":  {"count": c_neu, "pct": pct(c_neu, total)},
+       "negative": {"count": c_neg, "pct": pct(c_neg, total)},
+   }
+
+# ---------- /mentions-by-platform ----------
+@router.get("/mentions-by-platform", dependencies=[Depends(require_api_key)])
+def mentions_by_platform(
+   period: str = "7d",
+   startDate: str | None = None,
+   endDate: str | None = None,
+   db: Session = Depends(get_db)):
+   """
+   Devuelve lista tipo:
+   [
+     {"platform":"instagram","mentions":88},
+     {"platform":"tripadvisor","mentions":45},
+     {"platform":"twitter","mentions":24},
+     {"platform":"facebook","mentions":12}
+   ]
+   """
+   dt_from, dt_to = resolve_period(period, startDate, endDate)
+   q = (
+       db.query(
+           func.lower(Comment.platform).label("platform"),
+           func.count().label("c")
+       )
+       .filter(
+           Comment.platform_created_at >= dt_from,
+           Comment.platform_created_at < dt_to
+       )
+       .group_by("platform")
+   )
+   rows = q.all()
+   out = []
+   for plat, cnt in rows:
+       out.append({
+           "platform": plat or "unknown",
+           "mentions": cnt
+       })
+   # Ordenar desc para que el front pinte primero la más grande (opcional)
+   out.sort(key=lambda x: x["mentions"], reverse=True)
+   return out
+
+# ---------- /keywords ---------- (Aun no tenemos tabla de keywords)
+# @router.get("/keywords", dependencies=[Depends(require_api_key)])
+# def keywords_cloud(
+#    period: str = "7d",
+#    startDate: str | None = None,
+#    endDate: str | None = None,
+#    limit: int = 20,
+#    db: Session = Depends(get_db)):
+#    """
+#    Devuelve:
+#    [
+#      {"keyword":"excelente","count":31},
+#      {"keyword":"ubicación","count":27},
+#      ...
+#    ]
+#    """
+#    dt_from, dt_to = resolve_period(period, startDate, endDate)
+#    subquery con sólo los comments del rango que sí tienen keywords
+#    base = (
+#        db.query(Comment)
+#        .filter(
+#            Comment.platform_created_at >= dt_from,
+#            Comment.platform_created_at < dt_to,
+#            Comment.keywords.isnot(None)  # <- asumiendo columna keywords existe en ORM
+#        )
+#        .subquery()
+#    )
+#    unnest en Postgres
+#    kw_rows = (
+#        db.query(
+#            unnest(base.c.keywords).label("kw"),
+#            func.count().label("c")
+#        )
+#        .group_by("kw")
+#        .order_by(func.count().desc())
+#        .limit(limit)
+#        .all()
+#    )
+#    out = []
+#    for kw, c in kw_rows:
+#        if kw:
+#            out.append({"keyword": kw, "count": c})
+#    return out
