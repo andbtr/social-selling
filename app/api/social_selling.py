@@ -100,6 +100,40 @@ def _count_hot_leads(db: Session, dt_from: datetime, dt_to: datetime):
        .scalar()
    )
 
+def _intent_norm(v: str | None) -> str | None:
+   """
+   Normaliza intención a: 'high'|'medium'|'low'
+   """
+   if not v:
+       return None
+   s = v.strip().lower()
+   if s in {"high", "alta", "alto", "hi", "h"}:
+       return "high"
+   if s in {"medium", "media", "med", "mid", "m"}:
+       return "medium"
+   if s in {"low", "baja", "bajo", "lo", "l"}:
+       return "low"
+   return None
+
+def _count_intention(db: Session, dt_from: datetime, dt_to: datetime, level: str, platform: str | None = None):
+   """
+   Cuenta intenciones por nivel ('high'|'medium'|'low') sobre Comment.intention
+   respetando la ventana y opcionalmente la plataforma.
+   """
+   mapping = {
+       "high":   ("high","alta","alto","hi","h"),
+       "medium": ("medium","media","med","mid","m"),
+       "low":    ("low","baja","bajo","lo","l"),
+   }
+   q = db.query(func.count()).filter(
+       Comment.platform_created_at >= dt_from,
+       Comment.platform_created_at < dt_to,
+       func.lower(Comment.intention).in_(mapping[level])
+   )
+   if platform and platform != "all":
+       q = q.filter(Comment.platform == platform)
+   return q.scalar() or 0
+
 # ---------- /stats ----------
 @router.get("/stats", dependencies=[Depends(require_api_key)])
 def stats(period: str = "30d", platform: str = "all",
@@ -279,6 +313,80 @@ def mentions_by_platform(
    # Ordenar desc para que el front pinte primero la más grande (opcional)
    out.sort(key=lambda x: x["mentions"], reverse=True)
    return out
+
+# ---------- /intention-distribution ----------
+@router.get("/intention-distribution", dependencies=[Depends(require_api_key)])
+def intention_distribution(
+   period: str = "30d",
+   platform: str = "all",
+   startDate: str | None = None,
+   endDate: str | None = None,
+   db: Session = Depends(get_db)):
+   """
+   Devuelve, para la ventana, la distribución de intención Alta/Media/Baja
+   basada en Comment.intention:
+   {
+     "high":   { "count": X, "pct": Y },
+     "medium": { "count": A, "pct": B },
+     "low":    { "count": C, "pct": D }
+   }
+   """
+   dt_from, dt_to = resolve_period(period, startDate, endDate)
+   c_high = _count_intention(db, dt_from, dt_to, "high", platform)
+   c_med  = _count_intention(db, dt_from, dt_to, "medium", platform)
+   c_low  = _count_intention(db, dt_from, dt_to, "low", platform)
+   total = c_high + c_med + c_low
+   def pct(x: int, tot: int) -> int:
+       return round((x / tot) * 100) if tot else 0
+   return {
+       "high":   {"count": c_high, "pct": pct(c_high, total)},
+       "medium": {"count": c_med,  "pct": pct(c_med, total)},
+       "low":    {"count": c_low,  "pct": pct(c_low, total)},
+   }
+
+# ---------- /lead-classification ----------
+@router.get("/lead-classification", dependencies=[Depends(require_api_key)])
+def lead_classification(
+   period: str = "30d",
+   platform: str = "all",
+   startDate: str | None = None,
+   endDate: str | None = None,
+   db: Session = Depends(get_db)):
+   """
+   Distribución de LeadScore.priority_level (Hot/Warm/Cold) en la ventana.
+   Si 'platform' != 'all', se filtra por plataforma del Comment asociado.
+   Respuesta:
+   {
+     "hot":  { "count": X },
+     "warm": { "count": Y },
+     "cold": { "count": Z }
+   }
+   """
+   dt_from, dt_to = resolve_period(period, startDate, endDate)
+   # Base: LeadScore en ventana por computed_at
+   base = db.query(LeadScore).filter(
+       LeadScore.computed_at >= dt_from,
+       LeadScore.computed_at < dt_to
+   )
+   # Si quieres filtrar por plataforma, asumimos FK LeadScore.comment_id -> Comment.id
+   if platform != "all":
+       base = (
+           base.join(Comment, LeadScore.comment_id == Comment.id)
+               .filter(Comment.platform == platform)
+       )
+   # Normalizamos a hot / warm / cold por priority_level
+   # Acepta variantes ("hot","warm","cold") en cualquier mayúsc/minúsc
+   def _count_level(levels: tuple[str, ...]):
+       q = base.filter(func.lower(LeadScore.priority_level).in_(levels))
+       return q.count()
+   c_hot  = _count_level(("hot",))
+   c_warm = _count_level(("warm",))
+   c_cold = _count_level(("cold",))
+   return {
+       "hot":  {"count": c_hot},
+       "warm": {"count": c_warm},
+       "cold": {"count": c_cold},
+   }
 
 # ---------- /keywords ---------- (Aun no tenemos tabla de keywords)
 # @router.get("/keywords", dependencies=[Depends(require_api_key)])
