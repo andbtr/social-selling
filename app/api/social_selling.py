@@ -212,54 +212,6 @@ def mentions(period: str = "30d", platform: str = "all",
 
     return {"items": items, "next_offset": offset + limit}
 
-# ---------- /summary-cards ----------
-@router.get("/summary-cards", dependencies=[Depends(require_api_key)])
-def summary_cards(
-   period: str = "7d",
-   startDate: str | None = None,
-   endDate: str | None = None,
-   db: Session = Depends(get_db)):
-   """
-   Respuesta ejemplo:
-   {
-     "positive": { "count":127, "trend":"+12%" },
-     "neutral":  { "count":34,  "trend":"+3%"  },
-     "negative": { "count":8,   "trend":"-5%"  },
-     "leads":    { "count":23,  "trend":"+9%"  }
-   }
-   """
-   dt_from, dt_to = resolve_period(period, startDate, endDate)
-   window = dt_to - dt_from
-   prev_from, prev_to = dt_from - window, dt_from
-   # ventana actual
-   c_pos_now = _count_sentiment(db, dt_from, dt_to, "positive")
-   c_neu_now = _count_sentiment(db, dt_from, dt_to, "neutral")
-   c_neg_now = _count_sentiment(db, dt_from, dt_to, "negative")
-   c_lead_now = _count_hot_leads(db, dt_from, dt_to)
-   # ventana anterior
-   c_pos_prev = _count_sentiment(db, prev_from, prev_to, "positive")
-   c_neu_prev = _count_sentiment(db, prev_from, prev_to, "neutral")
-   c_neg_prev = _count_sentiment(db, prev_from, prev_to, "negative")
-   c_lead_prev = _count_hot_leads(db, prev_from, prev_to)
-   return {
-       "positive": {
-           "count": c_pos_now,
-           "trend": pct_change(c_pos_now, c_pos_prev)
-       },
-       "neutral": {
-           "count": c_neu_now,
-           "trend": pct_change(c_neu_now, c_neu_prev)
-       },
-       "negative": {
-           "count": c_neg_now,
-           "trend": pct_change(c_neg_now, c_neg_prev)
-       },
-       "leads": {
-           "count": c_lead_now,
-           "trend": pct_change(c_lead_now, c_lead_prev)
-       },
-   }
-
 # ---------- /sentiment-distribution ----------
 @router.get("/sentiment-distribution", dependencies=[Depends(require_api_key)])
 def sentiment_distribution(
