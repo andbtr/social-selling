@@ -278,41 +278,38 @@ def sentiment_distribution(
 # ---------- /mentions-by-platform ----------
 @router.get("/mentions-by-platform", dependencies=[Depends(require_api_key)])
 def mentions_by_platform(
-   period: str = "7d",
-   startDate: str | None = None,
-   endDate: str | None = None,
-   db: Session = Depends(get_db)):
-   """
-   Devuelve lista tipo:
-   [
-     {"platform":"instagram","mentions":88},
-     {"platform":"tripadvisor","mentions":45},
-     {"platform":"twitter","mentions":24},
-     {"platform":"facebook","mentions":12}
-   ]
-   """
-   dt_from, dt_to = resolve_period(period, startDate, endDate)
-   q = (
-       db.query(
-           func.lower(Comment.platform).label("platform"),
-           func.count().label("c")
-       )
-       .filter(
-           Comment.platform_created_at >= dt_from,
-           Comment.platform_created_at < dt_to
-       )
-       .group_by("platform")
-   )
-   rows = q.all()
-   out = []
-   for plat, cnt in rows:
-       out.append({
-           "platform": plat or "unknown",
-           "mentions": cnt
-       })
-   # Ordenar desc para que el front pinte primero la más grande (opcional)
-   out.sort(key=lambda x: x["mentions"], reverse=True)
-   return out
+    period: str = "7d",
+    startDate: str | None = None,
+    endDate: str | None = None,
+    db: Session = Depends(get_db),
+):
+    dt_from, dt_to = resolve_period(period, startDate, endDate)
+
+    platform_expr = func.lower(cast(Comment.platform, String))
+
+    q = (
+        db.query(
+            platform_expr.label("platform"),
+            func.count().label("c"),
+        )
+        .filter(
+            Comment.platform_created_at >= dt_from,
+            Comment.platform_created_at < dt_to,
+        )
+        .group_by(platform_expr)
+    )
+
+    rows = q.all()
+
+    out = []
+    for plat, cnt in rows:
+        out.append({
+            "platform": plat or "unknown",
+            "mentions": int(cnt or 0),
+        })
+
+    out.sort(key=lambda x: x["mentions"], reverse=True)
+    return out
 
 # ---------- /intention-distribution ----------
 @router.get("/intention-distribution", dependencies=[Depends(require_api_key)])

@@ -4,28 +4,34 @@ from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 from app.core.config import settings
 
-# Create database engine
+# Detectar si estamos usando SQLite o Postgres (u otro)
+is_sqlite = settings.database_url.startswith("sqlite")
+
+# Crear el engine
 engine = create_engine(
-    settings.database_url, 
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {}
+    settings.database_url,
+    connect_args={"check_same_thread": False} if is_sqlite else {},
+    pool_pre_ping=True,  # importante para conexiones vivas en RDS/Postgres
 )
 
-# Create SessionLocal class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Session factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
 
-# Create Base class for models
+# Base declarativa
 Base = declarative_base()
 
-
 def get_db() -> Generator[Session, None, None]:
-    """Dependency to get database session."""
+    """Dependency to get database session per request."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-
-def init_db():
-    """Initialize database tables."""
+def init_db() -> None:
+    """Creates tables if they don't exist (useful the first time on a new DB)."""
     Base.metadata.create_all(bind=engine)
