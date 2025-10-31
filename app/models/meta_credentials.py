@@ -11,6 +11,7 @@ class MetaCredentials(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     encrypted_access_token = Column(String, nullable=False)
+    encrypted_page_token = Column(String, nullable=True)
     fb_page_id = Column(String, nullable=True)
     ig_business_account_id = Column(String, nullable=True)
     

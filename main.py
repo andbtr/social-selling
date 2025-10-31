@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.api import comments_router, ingestion_router, auth_router, lead_scoring_router
 from app.api.social_selling import router as social_router
+from app.api.crm import router as crm_router
 
 
 # Create FastAPI application
@@ -29,6 +30,7 @@ app.include_router(ingestion_router)
 app.include_router(lead_scoring_router)
 app.include_router(auth_router)
 app.include_router(social_router)
+app.include_router(crm_router)
 
 @app.on_event("startup")
 async def startup_event():

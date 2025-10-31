@@ -56,35 +56,42 @@ class MetaAuthService:
     @staticmethod
     def _save_credentials_to_db(db: Session, credentials: Dict[str, Any]):
         """Saves or updates credentials in the database."""
-        encrypted_token = MetaAuthService._encrypt(credentials["user_access_token"])
-        
-        # Siempre guardamos una única entrada de credenciales activas
+        encrypted_access_token = MetaAuthService._encrypt(credentials["user_access_token"])
+        encrypted_page_token = MetaAuthService._encrypt(credentials["page_access_token"])
+
         db_credentials = db.query(MetaCredentials).first()
         if db_credentials:
-            db_credentials.encrypted_access_token = encrypted_token
+            db_credentials.encrypted_access_token = encrypted_access_token
+            db_credentials.encrypted_page_token = encrypted_page_token
             db_credentials.fb_page_id = credentials.get("fb_page_id")
             db_credentials.ig_business_account_id = credentials.get("ig_business_account_id")
         else:
             db_credentials = MetaCredentials(
-                encrypted_access_token=encrypted_token,
+                encrypted_access_token=encrypted_access_token,
+                encrypted_page_token=encrypted_page_token,
                 fb_page_id=credentials.get("fb_page_id"),
                 ig_business_account_id=credentials.get("ig_business_account_id"),
             )
             db.add(db_credentials)
+
         db.commit()
         db.refresh(db_credentials)
-        print("Credentials successfully saved/updated in the database.")
 
     @staticmethod
     def get_credentials_from_db(db: Session) -> Optional[Dict[str, Any]]:
         """Loads credentials from the database."""
         db_credentials = db.query(MetaCredentials).first()
-        if not db_credentials:
+        if db_credentials == None:
             return None
-        
-        decrypted_token = MetaAuthService._decrypt(db_credentials.encrypted_access_token)
+        decrypted_user_token = MetaAuthService._decrypt(db_credentials.encrypted_access_token)
+        decrypted_page_token = (
+            MetaAuthService._decrypt(db_credentials.encrypted_page_token)
+            if db_credentials.encrypted_page_token else None
+        )
+
         return {
-            "user_access_token": decrypted_token,
+            "user_access_token": decrypted_user_token,
+            "page_access_token": decrypted_page_token,
             "fb_page_id": db_credentials.fb_page_id,
             "ig_business_account_id": db_credentials.ig_business_account_id,
         }
@@ -156,42 +163,65 @@ class MetaAuthService:
     def discover_and_store_assets(db: Session, user_access_token: str):
         """
         Discovers Facebook Pages and linked Instagram accounts, then stores them.
+        Ensures a valid PAGE access_token is retrieved and saved.
         """
-        url = f"{MetaAuthService.BASE_URL}/me/accounts"
+        me_accounts_url = f"{MetaAuthService.BASE_URL}/me/accounts"
         params = {"access_token": user_access_token}
 
         try:
             with httpx.Client() as client:
-                response = client.get(url, params=params)
+                # Get all Facebook pages linked to the user
+                response = client.get(me_accounts_url, params=params)
                 response.raise_for_status()
                 pages = response.json().get("data", [])
 
+                if not pages:
+                    print("No Facebook Pages found for this user.")
+                    return
+
                 for page in pages:
                     page_id = page["id"]
-                    # Check for linked Instagram account
+
+                    # Always re-fetch page access_token directly from Graph API
+                    token_url = f"{MetaAuthService.BASE_URL}/{page_id}"
+                    token_params = {"fields": "access_token", "access_token": user_access_token}
+                    token_resp = client.get(token_url, params=token_params)
+                    token_resp.raise_for_status()
+
+                    page_access_token = token_resp.json().get("access_token")
+                    if not page_access_token:
+                        print(f"Skipping page {page_id}: could not retrieve a valid page access_token.")
+                        continue
+
+                    # Now check for linked Instagram Business Account
                     ig_url = f"{MetaAuthService.BASE_URL}/{page_id}"
                     ig_params = {
                         "fields": "instagram_business_account",
-                        "access_token": user_access_token,
+                        "access_token": page_access_token,
                     }
                     ig_response = client.get(ig_url, params=ig_params)
-                    
+
                     if ig_response.status_code == 200:
                         ig_data = ig_response.json()
                         if "instagram_business_account" in ig_data:
                             ig_account_id = ig_data["instagram_business_account"]["id"]
-                            
-                            # Found the first valid page, save credentials and exit
+
+                            # Save both tokens
                             credentials = {
                                 "user_access_token": user_access_token,
+                                "page_access_token": page_access_token,
                                 "fb_page_id": page_id,
                                 "ig_business_account_id": ig_account_id,
                             }
+
                             MetaAuthService._save_credentials_to_db(db, credentials)
-                            print(f"Successfully found and stored credentials for page {page_id} and IG account {ig_account_id}")
+                            print(
+                                f"Stored credentials for Page {page_id} and IG account {ig_account_id}"
+                            )
                             return
 
-                print("Could not find any Facebook Page with a linked Instagram Business Account.")
+                print("⚠️ Could not find any Facebook Page linked to an Instagram Business Account.")
 
         except httpx.HTTPStatusError as e:
             print(f"Error discovering assets: {e.response.text}")
+

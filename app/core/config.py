@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # TripAdvisor API
     tripadvisor_api_key: str = Field(default="", env="TRIPADVISOR_API_KEY")
 
+    # CRM Integration
+    crm_api_url: str = Field(default="", env="CRM_API_URL")
+    crm_api_key: str = Field(default="", env="CRM_API_KEY")
+
     # App Settings
     app_name: str = Field(default="Social Listening Platform", env="APP_NAME")
     app_version: str = Field(default="1.0.0", env="APP_VERSION")

@@ -4,8 +4,6 @@ from app.core.database import get_db
 from app.schemas import PostCreate
 from app.services.ingestion_service import (
     InstagramIngestionService,
-    MetaIngestionService,
-    XIngestionService,
     TripAdvisorIngestionService,
     FacebookIngestionService
 )
@@ -16,7 +14,6 @@ from typing import List
 from app.services.post_service import PostService
 
 router = APIRouter(prefix="/ingest", tags=["Data Ingestion"])
-
 
 @router.post("/instagram/posts")
 async def ingest_instagram_posts(db: Session = Depends(get_db)):
@@ -71,66 +68,6 @@ async def ingest_instagram_comments(db: Session = Depends(get_db)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting Instagram comments: {str(e)}")
-
-
-@router.post("/meta/{post_id}", response_model=List[CommentResponse])
-async def ingest_meta_comments(
-    post_id: str,
-    db: Session = Depends(get_db)
-):
-    """Ingest comments from a Meta (Facebook/Instagram) post."""
-    try:
-        # Fetch comments from Meta API
-        comments_data = await MetaIngestionService.fetch_comments(db, post_id)
-        
-        created_comments = []
-        for comment_data in comments_data:
-            # Transform to internal format
-            comment_dict = MetaIngestionService.transform_to_comment(comment_data)
-            
-            # Check if already exists
-            existing = CommentService.get_comment_by_platform_id(
-                db, comment_dict["platform_id"]
-            )
-            if not existing:
-                # Create comment
-                comment = CommentCreate(**comment_dict)
-                db_comment = CommentService.create_comment(db, comment)
-                created_comments.append(db_comment)
-        
-        return created_comments
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error ingesting Meta comments: {str(e)}")
-
-
-@router.post("/x/{tweet_id}", response_model=List[CommentResponse])
-async def ingest_x_replies(
-    tweet_id: str,
-    db: Session = Depends(get_db)
-):
-    """Ingest replies from an X (Twitter) tweet."""
-    try:
-        # Fetch replies from X API
-        replies_data = await XIngestionService.fetch_replies(tweet_id)
-        
-        created_comments = []
-        for reply_data in replies_data:
-            # Transform to internal format
-            comment_dict = XIngestionService.transform_to_comment(reply_data)
-            
-            # Check if already exists
-            existing = CommentService.get_comment_by_platform_id(
-                db, comment_dict["platform_id"]
-            )
-            if not existing:
-                # Create comment
-                comment = CommentCreate(**comment_dict)
-                db_comment = CommentService.create_comment(db, comment)
-                created_comments.append(db_comment)
-        
-        return created_comments
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error ingesting X replies: {str(e)}")
 
 
 @router.post("/tripadvisor/{location_id}", response_model=List[CommentResponse])
