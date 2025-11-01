@@ -10,7 +10,7 @@ def run():
     db = SessionLocal()
 
     if db.query(Comment).count() > 0:
-        print("⚠️ Comments ya existen, se omite seed.")
+        print("Comments ya existen, se omite seed.")
         db.close()
         return
 

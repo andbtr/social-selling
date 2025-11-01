@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -9,8 +9,7 @@ class LeadScoreOut(BaseModel):
     scoring_version: str
     computed_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class LeadThresholdOut(BaseModel):
     scoring_version: str
@@ -22,3 +21,5 @@ class LeadThresholdOut(BaseModel):
     warm_min: float
     min_intent_for_hot: float
     active: bool
+
+    model_config = ConfigDict(from_attributes=True)

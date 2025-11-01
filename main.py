@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import init_db
 from app.api import comments_router, ingestion_router, auth_router, lead_scoring_router
@@ -7,11 +8,23 @@ from app.api.social_selling import router as social_router
 from app.api.crm import router as crm_router
 
 
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events."""
+    # Startup
+    init_db()
+    yield
+    # Shutdown
+    pass
+
+
 # Create FastAPI application
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Social Listening Platform for ingesting and analyzing comments from Meta, X, and TripAdvisor",
+    description="Social Listening Platform for ingesting and analyzing comments from Meta and TripAdvisor",
+    lifespan=lifespan,
 )
 
 
@@ -31,11 +44,6 @@ app.include_router(lead_scoring_router)
 app.include_router(auth_router)
 app.include_router(social_router)
 app.include_router(crm_router)
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup."""
-    init_db()
 
 
 

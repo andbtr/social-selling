@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.sql import func
 from app.core.database import Base
 from .comment import platform_type_enum
-import enum
+
 
 class Post(Base):
     """Model for storing posts from social media platforms."""
@@ -19,4 +19,4 @@ class Post(Base):
     platform_created_at = Column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self):
-        return f"<Post(id={self.id}, platform={self.platform}, author={self.author})>"
+        return f"<Post(id={self.id}, platform={self.platform}, platform_id={self.platform_id})>"
