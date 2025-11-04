@@ -1,6 +1,4 @@
-#!/bin/bash
-
-echo "🚀 Social Listening Platform - Quick Start"
+echo "Social Listening Platform - Quick Start"
 echo "=========================================="
 echo ""
 

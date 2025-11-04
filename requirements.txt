@@ -1,8 +1,8 @@
-fastapi==0.119.0
-uvicorn[standard]==0.32.1
-sqlalchemy==2.0.36
-pydantic==2.10.3
-pydantic-settings==2.6.1
+fastapi==0.121.0
+uvicorn[standard]==0.38.0
+sqlalchemy==2.0.44
+pydantic==2.12.3
+pydantic-settings==2.11.0
 python-dotenv==1.0.1
 httpx==0.28.1
 alembic==1.17.0

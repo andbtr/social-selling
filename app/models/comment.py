@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Enum as SQLEnum
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 import enum
@@ -42,6 +43,8 @@ class Comment(Base):
     intention_analized_at = Column(DateTime(timezone=True), nullable=True)
     intention = Column(String(5), nullable=True)
     intention_confidence = Column(Float, nullable=True)
+
+    lead_score = relationship("LeadScore", back_populates="comment", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Comment(id={self.id}, platform={self.platform}, author={self.author})>"

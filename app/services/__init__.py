@@ -2,6 +2,7 @@
 from app.services.comment_service import CommentService
 from app.services.ingestion_service import (
     InstagramIngestionService,
+    FacebookIngestionService,
     TripAdvisorIngestionService
 )
 
