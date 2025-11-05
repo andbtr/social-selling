@@ -7,7 +7,7 @@ from app.models.comment import PlatformType
 class CommentBase(BaseModel):
     """Base schema for Comment."""
     platform: PlatformType
-    platform_id: str = Field(..., description="Unique identifier from the platform")
+    id_comment_platform: str = Field(..., description="Unique identifier from the platform")
     author: Optional[str] = None
     content: str = Field(..., min_length=1, description="Comment content")
     post_url: Optional[str] = None

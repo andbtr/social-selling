@@ -6,10 +6,10 @@ import enum
 
 class CRMLeadStatus(str, enum.Enum):
     """Enum for CRM lead sync status."""
-    PENDING = "pending"
-    SYNCED = "synced"
-    FAILED = "failed"
-    UPDATED = "updated"
+    PENDING = "PENDING"
+    SYNCED = "SYNCED"
+    FAILED = "FAILED"
+    UPDATED = "UPDATED"
 
 
 class CRMLead(Base):

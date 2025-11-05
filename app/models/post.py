@@ -1,17 +1,17 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SQLEnum
 from sqlalchemy.sql import func
 from app.core.database import Base
-from .comment import platform_type_enum
+from .comment import PlatformType
 
 
 class Post(Base):
     """Model for storing posts from social media platforms."""
 
     __tablename__ = "posts"
-
     id = Column(Integer, primary_key=True, index=True)
-    platform = Column(platform_type_enum, nullable=False, index=True)
-    platform_id = Column(String(255), unique=True, index=True, nullable=False)
+    platform = Column(SQLEnum(PlatformType, name="platformtype", create_type=False),
+                      nullable=False, index=True)
+    id_post_platform = Column(String(255), unique=True, index=True, nullable=False)
     text = Column(Text, nullable=False)
     media_type = Column(String)
     media_url = Column(Text)

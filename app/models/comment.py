@@ -6,19 +6,11 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 import enum
 
-# Define el Enum como un objeto independiente
-platform_type_enum = SQLEnum(
-    "facebook", "instagram", "tripadvisor",
-    name="platformtype",
-    create_type=False  # Alembic gestionará la creación
-)
-
 class PlatformType(str, enum.Enum):
     """Enum for social media platforms."""
-    FACEBOOK = "facebook"
-    INSTAGRAM = "instagram"
-    TRIPADVISOR = "tripadvisor"
-
+    FACEBOOK = "FACEBOOK"
+    INSTAGRAM = "INSTAGRAM"
+    TRIPADVISOR = "TRIPADVISOR"
 
 class Comment(Base):
     """Model for storing comments from social media platforms."""
@@ -26,9 +18,12 @@ class Comment(Base):
     __tablename__ = "comments"
     
     id = Column(Integer, primary_key=True, index=True)
-    platform = Column(platform_type_enum, nullable=False, index=True)
-    platform_id = Column(String(255), unique=True, index=True, nullable=False)
-    id_comment_platform = Column(Integer, nullable=True)
+    platform = Column(
+        SQLEnum(PlatformType, name="platformtype", create_type=False), 
+        nullable=False, 
+        index=True
+    )
+    id_comment_platform = Column(String(255), unique=True, index=True, nullable=False)
     author = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
     rating = Column(Float, nullable=True)

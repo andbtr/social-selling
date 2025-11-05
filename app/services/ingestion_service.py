@@ -49,8 +49,8 @@ class InstagramIngestionService:
     def transform_to_post(post_data: dict) -> dict:
         """Transform Instagram post data to internal format."""
         return {
-            "platform": "instagram",
-            "platform_id": post_data.get("id"),
+            "platform": "INSTAGRAM",
+            "id_comment_platform": post_data.get("id"),
             "text": post_data.get("caption", ""),
             "media_type": post_data.get("media_type"),
             "media_url": post_data.get("media_url"),
@@ -78,8 +78,8 @@ class InstagramIngestionService:
     def transform_to_comment(comment_data: dict) -> dict:
         """Transform Instagram comment data to internal format."""
         return {
-            "platform": "instagram",
-            "platform_id": comment_data.get("id"),
+            "platform": "INSTAGRAM",
+            "id_comment_platform": comment_data.get("id"),
             "author": comment_data.get("username"),
             "content": comment_data.get("text", ""),
             "post_url": None,
@@ -133,7 +133,6 @@ class TripAdvisorIngestionService:
         # id TA: numérico (lo guardamos también como string namespaced en platform_id)
         raw_id = review_data.get("id")
         id_comment_platform = int(raw_id) if isinstance(raw_id, int) or str(raw_id).isdigit() else None
-        platform_id = f"tripadvisor_{raw_id}"
         # autor viene en user.username
         user = review_data.get("user") or {}
         author = user.get("username") or "Unknown"
@@ -157,8 +156,7 @@ class TripAdvisorIngestionService:
                 platform_created_at = None
 
         return {
-            "platform": "tripadvisor",
-            "platform_id": platform_id,
+            "platform": "TRIPADVISOR",
             "id_comment_platform": id_comment_platform,
             "author": author,
             "content": content,

@@ -56,8 +56,8 @@ async def ingest_instagram_comments(db: Session = Depends(get_db)):
                 # Transform to internal format
                 comment_dict = InstagramIngestionService.transform_to_comment(comment_data)
                 # Check if already exists
-                existing = CommentService.get_comment_by_platform_id(
-                    db, comment_dict["platform_id"]
+                existing = CommentService.get_comment_by_id_comment_platform(
+                    db, comment_dict["id_comment_platform"]
                 )
                 if not existing:
                     comment = CommentCreate(**comment_dict)
@@ -113,7 +113,7 @@ async def ingest_facebook_posts(db: Session = Depends(get_db)):
         created_posts = []
         for p in posts_data:
             post_dict = {
-                "platform": "facebook",
+                "platform": "FACEBOOK",
                 "platform_id": p["id"],
                 "text": p.get("message", "") or "",
                 "media_type": "post",
@@ -152,16 +152,16 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
 
             for c in comments_data:
                 comment_dict = {
-                    "platform": "facebook",
-                    "platform_id": c["id"],
+                    "platform": "FACEBOOK",
+                    "id_comment_platform": c["id"],
                     "author": (c.get("from") or {}).get("name"),
                     "content": c.get("message", "") or "",
                     "post_url": p.get("permalink_url"),
                     "platform_created_at": c.get("created_time"),
                 }
 
-                existing = CommentService.get_comment_by_platform_id(
-                    db, comment_dict["platform_id"]
+                existing = CommentService.get_comment_by_id_comment_platform(
+                    db, comment_dict["id_comment_platform"]
                 )
                 if not existing:
                     comment = CommentCreate(**comment_dict)
@@ -191,7 +191,7 @@ async def ingest_facebook_comments_for_post(
 
         for c in comments_data:
             comment_dict = {
-                "platform": "facebook",
+                "platform": "FACEBOOK",
                 "platform_id": c["id"],
                 "author": (c.get("from") or {}).get("name"),
                 "content": c.get("message", "") or "",

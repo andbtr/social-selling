@@ -38,7 +38,10 @@ async def test_send_lead_by_lead_score(lead_score_id: int, db: Session = Depends
             content=comment.content,
             platform=comment.platform,
             post_url=comment.post_url,
-            crm_status=CRMLeadStatus.PENDING
+            crm_status=CRMLeadStatus.PENDING,
+            instagram_id=comment.instagram_id,
+            facebook_id=comment.facebook_id,
+            tripadvisor_id=comment.tripadvisor_id,
         )
         db.add(crm_lead)
     
