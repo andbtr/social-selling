@@ -4,14 +4,14 @@ from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 from app.core.config import settings
 
-# Detectar si estamos usando SQLite o Postgres (u otro)
+# Detect SQLite or Postgres
 is_sqlite = settings.database_url.startswith("sqlite")
 
-# Crear el engine
+# Creates the engine
 engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False} if is_sqlite else {},
-    pool_pre_ping=True,  # importante para conexiones vivas en RDS/Postgres
+    pool_pre_ping=True,
 )
 
 # Session factory

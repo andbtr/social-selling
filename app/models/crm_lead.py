@@ -35,6 +35,15 @@ class CRMLead(Base):
     platform = Column(String(50), nullable=False)  # facebook | instagram | tripadvisor
     post_url = Column(String(512), nullable=True)
     
+    # Enriched lead data
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    segment = Column(String(100), nullable=True)
+    interest = Column(String(255), nullable=True)
+    instagram_id = Column(Integer, nullable=True)
+    facebook_id = Column(Integer, nullable=True)
+    tripadvisor_id = Column(Integer, nullable=True)
+
     # Sync tracking
     synced_at = Column(DateTime(timezone=True), nullable=True)
     sync_error = Column(Text, nullable=True)

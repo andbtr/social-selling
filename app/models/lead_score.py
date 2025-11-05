@@ -13,6 +13,7 @@ class LeadScore(Base):
     scoring_version = Column(Text, nullable=False, default="v1")
     computed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
+
     comment = relationship("Comment", back_populates="lead_score")
 
 Index("idx_lead_scores_priority", LeadScore.priority_level, LeadScore.score.desc())

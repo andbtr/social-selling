@@ -1,8 +1,8 @@
-"""Initial schema
+"""Initial migration
 
-Revision ID: b5f103c9a76f
+Revision ID: 18a4f2e6ff7e
 Revises: 
-Create Date: 2025-10-30 21:58:10.961097
+Create Date: 2025-11-04 19:17:25.981561
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'b5f103c9a76f'
+revision: str = '18a4f2e6ff7e'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -62,6 +62,7 @@ def upgrade() -> None:
     op.create_table('meta_credentials',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('encrypted_access_token', sa.String(), nullable=False),
+    sa.Column('encrypted_page_token', sa.String(), nullable=True),
     sa.Column('fb_page_id', sa.String(), nullable=True),
     sa.Column('ig_business_account_id', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
@@ -95,7 +96,7 @@ def upgrade() -> None:
     )
     op.create_index('idx_lead_scores_priority', 'lead_scores', ['priority_level', sa.literal_column('score DESC')], unique=False)
     op.create_index('idx_lead_scores_time', 'lead_scores', [sa.literal_column('computed_at DESC')], unique=False)
-    op.create_index(op.f('ix_lead_scores_comment_id'), 'lead_scores', ['comment_id'], unique=False)
+    op.create_index(op.f('ix_lead_scores_comment_id'), 'lead_scores', ['comment_id'], unique=True)
     op.create_index(op.f('ix_lead_scores_id'), 'lead_scores', ['id'], unique=False)
     # ### end Alembic commands ###
 
