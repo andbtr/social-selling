@@ -1,7 +1,7 @@
 # app/api/social_selling.py
 from fastapi import APIRouter, Depends, Header, HTTPException
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import func, cast, Date, select
+from sqlalchemy import func, cast, Date, String
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -12,7 +12,16 @@ from app.models.lead_score import LeadScore
 router = APIRouter(prefix="/api/social-selling", tags=["social-selling"])
 
 # ---------- Auth ----------
-def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
+    """
+    Valida API key solo si está configurada en settings.
+    Si settings.api_key está vacío, permite acceso sin autenticación.
+    """
+    # Si no hay API key configurada, permite acceso libre
+    if not settings.api_key:
+        return
+
+    # Si hay API key configurada, valida el header
     if x_api_key != settings.api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
 

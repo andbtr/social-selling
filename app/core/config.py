@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     encryption_key: str = Field(..., env="ENCRYPTION_KEY")
 
+    # API Key para endpoints del dashboard (opcional - si está vacío, no se valida)
+    api_key: str = Field(default="", env="API_KEY")
+
     # ---------- NUEVO: Publicación / Graph API ----------
     # Modo de publicación (META = Graph API; LOCAL = guarda archivo y devuelve /static/uploads/...)
     publish_mode: Literal["META", "LOCAL"] = Field(default="META", env="PUBLISH_MODE")
