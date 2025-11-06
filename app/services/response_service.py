@@ -17,50 +17,37 @@ class CRMResponseService:
         from app.core.config import settings
 
         name = lead_score.comment.author or "Cliente"
+        # Add form URL using BASE_URL from config
+        form_url = f"{settings.base_url}/crm/form?platform={platform}"
 
         if lead_score.priority_level == "HOT":
-            message = f"""Hola {name},
+            message = f"""¡Hola {name}! 🙌
 
-¡Gracias por tu interés! Nos encanta tu comentario y queremos ayudarte lo antes posible.
+            Gracias por tu interés 💬 Nos encantaría ayudarte lo antes posible.
 
-Un miembro de nuestro equipo se pondrá en contacto contigo en las próximas 2 horas.
+            Por favor completa este breve formulario para ponernos en contacto contigo:
+            {form_url}
 
-¡Esperamos hablar contigo pronto!
-
-Saludos,
-Equipo de Atención al Cliente"""
+            🚀 Te contactaremos lo más rápido posible"""
 
         elif lead_score.priority_level == "WARM":
-            message = f"""Hola {name},
+            message = f"""Hola {name} 👋
 
-Gracias por tu mensaje. Valoramos mucho tu feedback y estamos revisando tu solicitud.
+            Gracias por tu mensaje 😊 Valoramos mucho tus comentarios.
 
-Nos comunicaremos contigo en las próximas 24 horas con más información.
+            Si deseas recibir más información, puedes dejarnos tus datos aquí:
+            {form_url}
 
-¡Saludos!
-Equipo de Atención al Cliente"""
+            Te contactaremos lo más pronto posible"""
 
         else:  # COLD
             message = f"""Hola {name},
 
-Agradecemos tu comentario. Hemos registrado tu mensaje en nuestro sistema.
+            Gracias por tu comentario 💬 Lo tomaremos en cuenta.
 
-Te contactaremos si necesitamos más información.
+            Si deseas comunicarte con nosotros directamente, puedes hacerlo aquí:
+            {form_url}
 
-¡Gracias!
-Equipo de Atención al Cliente"""
+            ¡Gracias por tomarte el tiempo de escribirnos!"""
 
-        # Add form URL using BASE_URL from config
-        form_url = f"{settings.base_url}/crm/form?platform={platform}"
-        form_section = f"""
-
----
-
-📋 **FORMULARIO DE CONTACTO**
-
-Para que podamos contactarte, completa nuestro formulario aquí:
-{form_url}
-
-¡Gracias!"""
-
-        return message + form_section
+        return message
