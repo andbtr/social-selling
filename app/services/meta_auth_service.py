@@ -39,9 +39,11 @@ class MetaAuthService:
         scopes = [
             "public_profile",
             "pages_show_list",
+            "pages_manage_metadata",
+            "pages_manage_posts",
+            "pages_read_engagement",
             "instagram_basic",
-            "instagram_manage_comments",
-            "pages_read_engagement"
+            "instagram_manage_comments"
         ]
         params = {
             "client_id": settings.meta_app_id,

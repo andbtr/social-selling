@@ -10,23 +10,23 @@ class CrmService:
         Sends a lead to the CRM.
         """
         lead_data = {
-            "fullName": lead.author,
+            "fullName": lead.fullname or lead.author,  # Use fullname if available (from form), else author (from comment)
             "email": lead.email,
             "phone": lead.phone,
             "origin": lead.platform,
             "segment": lead.segment,
             "status": "NUEVO",
             "interest": lead.interest,
-            "score": float(lead.lead_score),
+            "score": float(lead.lead_score) if lead.lead_score else None,
             "convertedToClient": False,
             "primaryContactChannel": None,  # Not in CRMLead
             "estimatedPotentialValue": None, # Not in CRMLead
             "instagramId": lead.instagram_id,
             "facebookId": lead.facebook_id,
             "tripadvisorId": lead.tripadvisor_id,
-            "igUsername": lead.author if lead.platform == "instagram" else None,
-            "fbUsername": lead.author if lead.platform == "facebook" else None,
-            "tripadvUsername": lead.author if lead.platform == "tripadvisor" else None,
+            "igUsername": lead.author if lead.platform == "INSTAGRAM" else None,
+            "fbUsername": lead.author if lead.platform == "FACEBOOK" else None,
+            "tripadvUsername": lead.author if lead.platform == "TRIPADVISOR" else None,
             "commentLink": lead.post_url,
         }
 

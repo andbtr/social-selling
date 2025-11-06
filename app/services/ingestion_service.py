@@ -4,7 +4,6 @@ from typing import List, Dict, Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.services.post_service import PostService
 from app.core.config import settings
 from datetime import datetime
 import json
@@ -226,3 +225,88 @@ class FacebookIngestionService:
                     status_code=400,
                     detail=f"Error fetching Facebook comments: {e.response.status_code} - {e.response.text}"
                 )
+
+
+async def send_auto_reply_to_comment(db: Session, db_comment, platform: str) -> bool:
+    """
+    Send automatic reply to a comment via Meta API based on its lead score.
+
+    Args:
+        db: Database session
+        db_comment: Comment object (with lead_score relationship populated)
+        platform: Platform name ("INSTAGRAM" or "FACEBOOK")
+
+    Returns:
+        True if reply sent successfully, False otherwise
+    """
+    from app.services.response_service import CRMResponseService
+
+    try:
+        # Get lead score (created automatically by CommentService)
+        lead_score = db_comment.lead_score
+        if not lead_score:
+            print(f"[send_auto_reply] No lead score for comment {db_comment.id}")
+            return False
+
+        # Generate message based on priority level
+        message = CRMResponseService.generate_response_message(lead_score, platform, db_comment.id)
+
+        # Get credentials from DB
+        credentials = _get_meta_credentials(db)
+
+        # Send reply via Meta API
+        base_url = "https://graph.facebook.com/v23.0"
+
+        if platform == "INSTAGRAM":
+            access_token = credentials.get("user_access_token")
+            url = f"{base_url}/{db_comment.id_comment_platform}/replies"
+            # Instagram accepts params in URL
+            params = {
+                "message": message,
+                "access_token": access_token,
+            }
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, params=params)
+                response.raise_for_status()
+                result = response.json()
+                print(f"[send_auto_reply] {platform} reply sent to comment {db_comment.id_comment_platform}")
+                return True
+
+        elif platform == "FACEBOOK":
+            access_token = credentials.get("page_access_token")
+            if not access_token:
+                print("[send_auto_reply] Missing page_access_token. Cannot send Facebook reply.")
+                return False
+
+            url = f"{base_url}/{db_comment.id_comment_platform}/comments"
+            # Facebook uses /comments endpoint with access_token in URL params and message in body
+            params = {
+                "access_token": access_token,
+            }
+            data = {
+                "message": message,
+            }
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, params=params, json=data)
+
+                if response.status_code == 403:
+                    # Log detailed error for 403
+                    error_body = response.json()
+                    print(f"[send_auto_reply] 403 Forbidden - Facebook error: {error_body}")
+                    print(f"[send_auto_reply] Token used: {access_token[:20]}... (truncated)")
+                    print(f"[send_auto_reply] Comment ID: {db_comment.id_comment_platform}")
+                    return False
+
+                response.raise_for_status()
+                result = response.json()
+                print(f"[send_auto_reply] {platform} reply sent to comment {db_comment.id_comment_platform}")
+                return True
+        else:
+            print(f"[send_auto_reply] Unsupported platform: {platform}")
+            return False
+
+    except Exception as e:
+        print(f"[send_auto_reply] Error sending {platform} reply: {str(e)}")
+        return False
+
+

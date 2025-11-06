@@ -1,85 +1,163 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.services.crm_service import CrmService
-from app.models.crm_lead import CRMLead, CRMLeadStatus
-from app.models.lead_score import LeadScore
-from app.models.comment import Comment
-import datetime
+from app.schemas.form_response import FormResponseCreate, FormResponseRead
+from app.services.form_response_service import FormResponseService
 
-router = APIRouter(prefix="/api/crm", tags=["CRM"])
+router = APIRouter(prefix="/crm", tags=["CRM"])
 
-# --- Test Endpoints for Proving Java Integration ---
-
-@router.post("/test/send-by-lead-score-id/{lead_score_id}", tags=["CRM Testing"])
-async def test_send_lead_by_lead_score(lead_score_id: int, db: Session = Depends(get_db)):
+@router.get("/form", response_class=HTMLResponse)
+async def get_form(
+    platform: str = Query("INSTAGRAM", description="Platform: INSTAGRAM or FACEBOOK"),
+    db: Session = Depends(get_db)
+):
     """
-    Finds a LeadScore, creates/updates a CRMLead record, and sends it to the CRM.
-    This is a utility endpoint for easy testing.
+    Serve public HTML form for capturing lead information.
     """
-    # 1. Find the LeadScore and its associated Comment
-    lead_score = db.query(LeadScore).filter(LeadScore.id == lead_score_id).first()
-    if not lead_score:
-        raise HTTPException(status_code=404, detail=f"LeadScore with id {lead_score_id} not found.")
-
-    comment = db.query(Comment).filter(Comment.id == lead_score.comment_id).first()
-    if not comment:
-        raise HTTPException(status_code=404, detail=f"Comment with id {lead_score.comment_id} not found.")
-
-    # 2. Find or create the CRMLead
-    crm_lead = db.query(CRMLead).filter(CRMLead.lead_score_id == lead_score_id).first()
-    if not crm_lead:
-        crm_lead = CRMLead(
-            lead_score_id=lead_score.id,
-            comment_id=comment.id,
-            priority_level=lead_score.priority_level,
-            lead_score=lead_score.score,
-            author=comment.author,
-            content=comment.content,
-            platform=comment.platform,
-            post_url=comment.post_url,
-            crm_status=CRMLeadStatus.PENDING,
-            instagram_id=comment.instagram_id,
-            facebook_id=comment.facebook_id,
-            tripadvisor_id=comment.tripadvisor_id,
-        )
-        db.add(crm_lead)
-    
-    # 3. Send to CRM
-    crm_service = CrmService(crm_api_base_url="http://localhost:8080/api")
-    crm_response = crm_service.send_lead(crm_lead)
-
-    # 4. Update status based on response
-    if crm_response and crm_response.get('id'): # Assuming CRM returns a JSON with an 'id'
-        crm_lead.crm_status = CRMLeadStatus.SYNCED
-        crm_lead.crm_lead_id = str(crm_response.get('id'))
-        crm_lead.synced_at = datetime.datetime.utcnow()
-        crm_lead.sync_error = None
-        db.commit()
-        return {"status": "success", "detail": "Lead sent and status updated to SYNCED.", "crm_response": crm_response}
-    else:
-        crm_lead.crm_status = CRMLeadStatus.FAILED
-        crm_lead.sync_error = str(crm_response) # Store the error response
-        crm_lead.last_sync_attempt = datetime.datetime.utcnow()
-        if crm_lead.sync_attempts is None:
-            crm_lead.sync_attempts = 0
-        crm_lead.sync_attempts += 1
-        db.commit()
-        raise HTTPException(status_code=500, detail={"message": "Failed to send lead to CRM.", "crm_error": str(crm_response)})
-
-
-
-@router.post("/sync-leads")
-async def sync_leads_to_crm(db: Session = Depends(get_db), limit: int = Query(50, ge=1, le=500)):
-    # ... (original code remains here)
-    pass
-
-@router.get("/sync-status")
-async def get_sync_status(db: Session = Depends(get_db), limit: int = Query(50, ge=1, le=500)):
-    # ... (original code remains here)
-    pass
-
+    html_form = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Formulario de Contacto</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }}
+            .container {{ background: white; border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); max-width: 500px; width: 100%; padding: 40px; }}
+            h1 {{ color: #333; margin-bottom: 10px; font-size: 28px; }}
+            .subtitle {{ color: #666; margin-bottom: 30px; font-size: 14px; }}
+            .form-group {{ margin-bottom: 20px; }}
+            label {{ display: block; margin-bottom: 8px; color: #333; font-weight: 500; font-size: 14px; }}
+            input[type="text"], input[type="email"], input[type="tel"], textarea {{ width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; font-family: inherit; transition: border-color 0.3s; }}
+            input[type="text"]:focus, input[type="email"]:focus, input[type="tel"]:focus, textarea:focus {{ outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }}
+            textarea {{ resize: vertical; min-height: 100px; }}
+            .checkbox-group {{ display: flex; align-items: flex-start; gap: 10px; margin-bottom: 30px; }}
+            input[type="checkbox"] {{ width: 20px; height: 20px; margin-top: 2px; cursor: pointer; accent-color: #667eea; }}
+            .checkbox-group label {{ margin: 0; font-weight: 400; cursor: pointer; color: #555; }}
+            .platform-field {{ background: #f5f5f5; padding: 12px; border-radius: 5px; margin-bottom: 20px; }}
+            .platform-field label {{ margin-bottom: 5px; }}
+            .platform-value {{ color: #667eea; font-weight: 600; font-size: 16px; }}
+            button {{ width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }}
+            button:hover {{ transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }}
+            button:active {{ transform: translateY(0); }}
+            .success {{ display: none; background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📋 Formulario de Contacto</h1>
+            <p class="subtitle">Completa el formulario para que podamos contactarte</p>
+            <div class="success" id="successMessage">
+                ✓ ¡Gracias! Tu información ha sido registrada exitosamente.
+            </div>
+            <form id="contactForm" onsubmit="submitForm(event)">
+                <div class="platform-field">
+                    <label>Plataforma:</label>
+                    <div class="platform-value">{platform}</div>
+                    <input type="hidden" name="platform" value="{platform}">
+                </div>
+                <div class="form-group">
+                    <label for="fullname">Nombre Completo *</label>
+                    <input type="text" id="fullname" name="fullname" required placeholder="Juan Pérez">
+                </div>
+                <div class="form-group">
+                    <label for="email">Correo Electrónico *</label>
+                    <input type="email" id="email" name="email" required placeholder="tu@correo.com">
+                </div>
+                <div class="form-group">
+                    <label for="phone">Teléfono *</label>
+                    <input type="tel" id="phone" name="phone" required placeholder="+34 600 123 456">
+                </div>
+                <div class="form-group">
+                    <label for="interest">¿Cuál es tu interés?</label>
+                    <textarea id="interest" name="interest" placeholder="Cuéntanos más sobre lo que necesitas..."></textarea>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="consent" name="consent" required>
+                    <label for="consent">
+                        Autorizo el uso de mis datos de contacto para que se comuniquen conmigo
+                    </label>
+                </div>
+                <button type="submit">Enviar Información</button>
+            </form>
+        </div>
+        <script>
+            async function submitForm(event) {{
+                event.preventDefault();
+                const form = document.getElementById('contactForm');
+                const formData = new FormData(form);
+                const data = {{
+                    platform: formData.get('platform'),
+                    fullname: formData.get('fullname'),
+                    email: formData.get('email'),
+                    phone: formData.get('phone'),
+                    interest: formData.get('interest'),
+                    consent: formData.get('consent') === 'on'
+                }};
+                try {{
+                    const response = await fetch('/crm/submit-form', {{
+                        method: 'POST',
+                        headers: {{'Content-Type': 'application/json'}},
+                        body: JSON.stringify(data)
+                    }});
+                    if (response.ok) {{
+                        document.getElementById('successMessage').style.display = 'block';
+                        form.style.display = 'none';
+                    }} else {{
+                        const error = await response.json();
+                        alert('Error: ' + error.detail);
+                    }}
+                }} catch (error) {{
+                    alert('Error al enviar el formulario: ' + error.message);
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    return html_form
+@router.post("/submit-form", response_model=FormResponseRead)
+async def submit_form_response(
+    form_data: FormResponseCreate,
+    db: Session = Depends(get_db)
+):
+    """Process form submission from CRM response message."""
+    try:
+        form_dict = form_data.model_dump()
+        crm_lead = FormResponseService.create_crm_lead_from_form(db, form_dict)
+        return {
+            "id": crm_lead.id,
+            "platform": crm_lead.platform,
+            "fullname": crm_lead.fullname,
+            "email": crm_lead.email,
+            "phone": crm_lead.phone,
+            "interest": crm_lead.interest,
+            "created_at": crm_lead.created_at.isoformat() if crm_lead.created_at else None,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error processing form: {str(e)}")
 @router.get("/leads")
-async def get_crm_leads(db: Session = Depends(get_db), priority: str = Query(None, enum=["HOT", "WARM"]), status: str = Query(None, enum=["pending", "synced", "failed", "updated"]), limit: int = Query(50, ge=1, le=500)):
-    # ... (original code remains here)
-    pass
+async def get_crm_leads(
+    platform: str = None,
+    db: Session = Depends(get_db)
+):
+    """Get CRM leads with optional filtering."""
+    from app.models.crm_lead import CRMLead
+    query = db.query(CRMLead)
+    if platform:
+        query = query.filter(CRMLead.platform == platform)
+    leads = query.order_by(CRMLead.created_at.desc()).all()
+    return leads
+@router.get("/leads/{lead_id}")
+async def get_crm_lead(
+    lead_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a specific CRM lead."""
+    from app.models.crm_lead import CRMLead
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return lead

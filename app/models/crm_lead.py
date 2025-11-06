@@ -18,28 +18,29 @@ class CRMLead(Base):
     __tablename__ = "crm_leads"
     
     id = Column(Integer, primary_key=True, index=True)
-    # Reference to LeadScore
-    lead_score_id = Column(Integer, ForeignKey("lead_scores.id", ondelete="CASCADE"), nullable=False, index=True)
-    # Reference to Comment
-    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
-    
+    # Reference to LeadScore (optional - only for auto-response flow)
+    lead_score_id = Column(Integer, ForeignKey("lead_scores.id", ondelete="CASCADE"), nullable=True, index=True)
+    # Reference to Comment (optional - only for auto-response flow)
+    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True, index=True)
+
     # CRM tracking
     crm_lead_id = Column(String(255), nullable=True, index=True)  # ID returned by CRM
     crm_status = Column(SQLEnum(CRMLeadStatus), nullable=False, default=CRMLeadStatus.PENDING)
     
     # Lead details
-    priority_level = Column(String(10), nullable=False)  # HOT | WARM
-    lead_score = Column(Numeric(5,2), nullable=False)
+    priority_level = Column(String(10), nullable=True)  # HOT | WARM | COLD
+    lead_score = Column(Numeric(5,2), nullable=True)
     author = Column(String(255), nullable=True)
-    content = Column(Text, nullable=False)
+    content = Column(Text, nullable=True)
     platform = Column(String(50), nullable=False)  # facebook | instagram | tripadvisor
     post_url = Column(String(512), nullable=True)
     
     # Enriched lead data
+    fullname = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
     phone = Column(String(50), nullable=True)
     segment = Column(String(100), nullable=True)
-    interest = Column(String(255), nullable=True)
+    interest = Column(Text, nullable=True)
     instagram_id = Column(Integer, nullable=True)
     facebook_id = Column(Integer, nullable=True)
     tripadvisor_id = Column(Integer, nullable=True)

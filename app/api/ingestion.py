@@ -5,7 +5,8 @@ from app.schemas import PostCreate
 from app.services.ingestion_service import (
     InstagramIngestionService,
     TripAdvisorIngestionService,
-    FacebookIngestionService
+    FacebookIngestionService,
+    send_auto_reply_to_comment
 )
 from app.services.comment_service import CommentService
 from app.schemas.comment import CommentCreate, CommentResponse
@@ -60,8 +61,16 @@ async def ingest_instagram_comments(db: Session = Depends(get_db)):
                     db, comment_dict["id_comment_platform"]
                 )
                 if not existing:
+                    # 1. Create comment (sentiment, intention, lead_score calculated automatically)
                     comment = CommentCreate(**comment_dict)
                     db_comment = CommentService.create_comment(db, comment)
+
+                    # 2. Create CRMLead entry
+                    #crm_lead = create_crm_lead_from_comment(db, db_comment, "INSTAGRAM")
+
+                    # 3. Send automatic reply based on lead score
+                    await send_auto_reply_to_comment(db, db_comment, "INSTAGRAM")
+
                     created_comments.append(db_comment)
 
         return created_comments
@@ -85,11 +94,11 @@ async def ingest_tripadvisor_reviews(
             comment_dict = TripAdvisorIngestionService.transform_to_comment(review_data)
 
             # si no hay ID, no podemos deduplicar
-            if not comment_dict.get("platform_id"):
+            if not comment_dict.get("id_comment_platform"):
                 continue
 
-            existing = CommentService.get_comment_by_platform_id(
-                db, comment_dict["platform_id"]
+            existing = CommentService.get_comment_by_id_comment_platform(
+                db, str(comment_dict["id_comment_platform"])
             )
             if not existing:
                 # Create comment
@@ -164,8 +173,16 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
                     db, comment_dict["id_comment_platform"]
                 )
                 if not existing:
+                    # 1. Create comment (sentiment, intention, lead_score calculated automatically)
                     comment = CommentCreate(**comment_dict)
                     db_comment = CommentService.create_comment(db, comment)
+
+                    # 2. Create CRMLead entry
+                    #crm_lead = create_crm_lead_from_comment(db, db_comment, "FACEBOOK")
+
+                    # 3. Send automatic reply based on lead score
+                    await send_auto_reply_to_comment(db, db_comment, "FACEBOOK")
+
                     created_comments.append(db_comment)
 
         return created_comments
@@ -192,19 +209,24 @@ async def ingest_facebook_comments_for_post(
         for c in comments_data:
             comment_dict = {
                 "platform": "FACEBOOK",
-                "platform_id": c["id"],
+                "id_comment_platform": c["id"],
                 "author": (c.get("from") or {}).get("name"),
                 "content": c.get("message", "") or "",
                 "post_url": post_permalink,
                 "platform_created_at": c.get("created_time"),
             }
 
-            existing = CommentService.get_comment_by_platform_id(
-                db, comment_dict["platform_id"]
+            existing = CommentService.get_comment_by_id_comment_platform(
+                db, comment_dict["id_comment_platform"]
             )
             if not existing:
+                # Create comment (sentiment, intention, lead_score calculated automatically)
                 comment = CommentCreate(**comment_dict)
                 db_comment = CommentService.create_comment(db, comment)
+
+                # Send automatic reply based on lead score
+                await send_auto_reply_to_comment(db, db_comment, "FACEBOOK")
+
                 created_comments.append(db_comment)
 
         return created_comments

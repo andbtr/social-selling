@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # App Settings
     app_name: str = Field(default="Social Listening Platform", env="APP_NAME")
     app_version: str = Field(default="1.0.0", env="APP_VERSION")
+    base_url: str = Field(default="http://localhost:8000", env="BASE_URL")
     debug: bool = Field(default=True, env="DEBUG")
 
     encryption_key: str = Field(..., env="ENCRYPTION_KEY")
