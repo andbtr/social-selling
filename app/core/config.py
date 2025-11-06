@@ -1,8 +1,8 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, AnyUrl
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 
 class Settings(BaseSettings):
@@ -29,6 +29,22 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True, env="DEBUG")
 
     encryption_key: str = Field(..., env="ENCRYPTION_KEY")
+
+    # ---------- NUEVO: Publicación / Graph API ----------
+    # Modo de publicación (META = Graph API; LOCAL = guarda archivo y devuelve /static/uploads/...)
+    publish_mode: Literal["META", "LOCAL"] = Field(default="META", env="PUBLISH_MODE")
+
+    # Requerido por Instagram si sirves imágenes tú mismo (URL pública accesible)
+    public_base_url: Optional[AnyUrl] = Field(default=None, env="PUBLIC_BASE_URL")
+
+    # Versión de Graph API
+    meta_graph_version: str = Field(default="v20.0", env="META_GRAPH_VERSION")
+
+    # --- helper para tomar siempre el mejor token ---
+    @property
+    def fb_page_token(self) -> Optional[str]:
+        # Prefiere token de PÁGINA; si no hay, usa el que ya tienes
+        return self.meta_fb_page_access_token or self.meta_fb_access_token or None
 
     class Config:
         env_file = ".env"

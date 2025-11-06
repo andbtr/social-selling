@@ -1,6 +1,6 @@
 """API schemas."""
 from app.schemas.comment import CommentCreate, CommentResponse, CommentList
-from app.schemas.post import PostCreate, Post
+from .post import PostCreate, PostResponse
 
 
-__all__ = ["CommentCreate", "CommentResponse", "CommentList", "PostCreate", "Post"]
+__all__ = ["CommentCreate", "CommentResponse", "CommentList", "PostCreate", "PostResponse"]
