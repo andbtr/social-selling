@@ -43,6 +43,15 @@ class Settings(BaseSettings):
     # Versión de Graph API
     meta_graph_version: str = Field(default="v20.0", env="META_GRAPH_VERSION")
 
+    # Facebook Page Publishing
+    fb_page_id: Optional[str] = Field(default=None, env="FB_PAGE_ID")
+    meta_fb_page_access_token: Optional[str] = Field(default=None, env="META_FB_PAGE_ACCESS_TOKEN")
+    meta_fb_access_token: Optional[str] = Field(default=None, env="META_FB_ACCESS_TOKEN")
+
+    # Instagram Business Account Publishing
+    instagram_business_account_id: Optional[str] = Field(default=None, env="INSTAGRAM_BUSINESS_ACCOUNT_ID")
+    meta_ig_access_token: Optional[str] = Field(default=None, env="META_IG_ACCESS_TOKEN")
+
     # --- helper para tomar siempre el mejor token ---
     @property
     def fb_page_token(self) -> Optional[str]:

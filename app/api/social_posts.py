@@ -28,7 +28,7 @@ async def create_post(
     # ---- Publicación en Meta con timeout para evitar cuelgues ----
     try:
         platform_id, media_type, media_url, platform_created_at = await asyncio.wait_for(
-            publish_post(platform_in, text, image),
+            publish_post(db, platform_in, text, image),
             timeout=25.0,
         )
     except asyncio.TimeoutError:

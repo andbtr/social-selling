@@ -1,5 +1,4 @@
 # app/services/post_publisher.py
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,8 +6,10 @@ from typing import Optional, Tuple
 
 import httpx
 from fastapi import UploadFile
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.services.meta_auth_service import MetaAuthService
 
 Graph = lambda path: f"https://graph.facebook.com/{settings.meta_graph_version}/{path}"
 
@@ -47,7 +48,7 @@ async def save_local_and_get_urls(image: UploadFile) -> Tuple[str, str]:
 # ---------------------------
 # Facebook Page
 # ---------------------------
-async def publish_facebook(text: str | None, image: UploadFile | None):
+async def publish_facebook(db: Session, text: str | None, image: UploadFile | None):
     """
     Publica en una Página de Facebook.
     - Solo texto -> POST /{page-id}/feed
@@ -55,10 +56,15 @@ async def publish_facebook(text: str | None, image: UploadFile | None):
                       2) POST /{page-id}/feed con attached_media
     Devuelve: (platform_id, media_type, media_url, platform_created_at)
     """
-    page_id = settings.fb_page_id
-    page_token = settings.fb_page_token
+    # Obtener credenciales de la BD
+    credentials = MetaAuthService.get_credentials_from_db(db)
+    if not credentials:
+        raise RuntimeError("No hay credenciales de Meta en la base de datos.")
+
+    page_id = credentials.get("fb_page_id")
+    page_token = credentials.get("page_access_token")
     if not page_id or not page_token:
-        raise RuntimeError("Falta FB_PAGE_ID o PAGE ACCESS TOKEN.")
+        raise RuntimeError("Falta FB_PAGE_ID o PAGE ACCESS TOKEN en la base de datos.")
 
     async with httpx.AsyncClient(timeout=60) as client:
         # Solo texto
@@ -105,7 +111,7 @@ async def publish_facebook(text: str | None, image: UploadFile | None):
 # ---------------------------
 # Instagram Business
 # ---------------------------
-async def publish_instagram(text: str | None, image: UploadFile | None):
+async def publish_instagram(db: Session, text: str | None, image: UploadFile | None):
     """
     Publica en Instagram Business.
     Requiere URL pública de la imagen.
@@ -114,10 +120,15 @@ async def publish_instagram(text: str | None, image: UploadFile | None):
       3) GET  /{post_id}?fields=permalink -> permalink
     Devuelve: (platform_id, media_type, media_url, platform_created_at)
     """
-    ig_user_id = settings.instagram_business_account_id
-    ig_token = settings.meta_ig_access_token
+    # Obtener credenciales de la BD
+    credentials = MetaAuthService.get_credentials_from_db(db)
+    if not credentials:
+        raise RuntimeError("No hay credenciales de Meta en la base de datos.")
+
+    ig_user_id = credentials.get("ig_business_account_id")
+    ig_token = credentials.get("page_access_token") or credentials.get("user_access_token")
     if not ig_user_id or not ig_token:
-        raise RuntimeError("Falta INSTAGRAM_BUSINESS_ACCOUNT_ID o META_IG_ACCESS_TOKEN.")
+        raise RuntimeError("Falta INSTAGRAM_BUSINESS_ACCOUNT_ID o META_IG_ACCESS_TOKEN en la base de datos.")
 
     # Si recibimos archivo, guardamos local y usamos PUBLIC_BASE_URL + /static/uploads/...
     image_url: Optional[str] = None
@@ -158,18 +169,18 @@ async def publish_instagram(text: str | None, image: UploadFile | None):
 # ---------------------------
 # Orquestador público
 # ---------------------------
-async def publish_to_meta(platform: str, text: str | None, image: UploadFile | None):
+async def publish_to_meta(db: Session, platform: str, text: str | None, image: UploadFile | None):
     platform = (platform or "").lower()
     if platform == "facebook":
-        return await publish_facebook(text, image)
+        return await publish_facebook(db, text, image)
     if platform == "instagram":
-        return await publish_instagram(text, image)
+        return await publish_instagram(db, text, image)
     raise RuntimeError("Plataforma no soportada: usa facebook | instagram")
 
 # ---------------------------
 # Entry para el router
 # ---------------------------
-async def publish_post(platform: str, text: str | None, image: UploadFile | None):
+async def publish_post(db: Session, platform: str, text: str | None, image: UploadFile | None):
     """
     Decide según PUBLISH_MODE:
       - META  -> usa Graph API (facebook/instagram)
@@ -182,4 +193,4 @@ async def publish_post(platform: str, text: str | None, image: UploadFile | None
             return None, "image", public_url, utcnow()
         return None, None, None, utcnow()
     # META
-    return await publish_to_meta(platform, text, image)
+    return await publish_to_meta(db, platform, text, image)
