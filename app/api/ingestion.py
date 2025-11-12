@@ -93,13 +93,16 @@ async def ingest_tripadvisor_reviews(
         for review_data in reviews_data:
             comment_dict = TripAdvisorIngestionService.transform_to_comment(review_data)
 
+            raw_id = comment_dict.get("id_comment_platform")
             # si no hay ID, no podemos deduplicar
-            if not comment_dict.get("id_comment_platform"):
+            if not raw_id:
                 continue
 
-            existing = CommentService.get_comment_by_id_comment_platform(
-                db, str(comment_dict["id_comment_platform"])
-            )
+            comment_id = str(raw_id)
+            comment_dict["id_comment_platform"] = comment_id
+
+            existing = CommentService.get_comment_by_id_comment_platform(db, comment_id)
+
             if not existing:
                 # Create comment
                 comment = CommentCreate(**comment_dict)
