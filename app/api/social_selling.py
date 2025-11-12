@@ -1,5 +1,5 @@
 # app/api/social_selling.py
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, cast, Date, String
 from sqlalchemy.orm import Session
@@ -8,6 +8,10 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.comment import Comment  # tu modelo real
 from app.models.lead_score import LeadScore
+
+from typing import Optional, List
+from app.services.post_service import PostService
+from app.services.ingestion_service import FacebookIngestionService, InstagramIngestionService
 
 router = APIRouter(prefix="/api/social-selling", tags=["social-selling"])
 
@@ -350,6 +354,20 @@ def intention_distribution(
        "low":    {"count": c_low,  "pct": pct(c_low, total)},
    }
 
+@router.get("/posts")
+def list_posts(
+    platform: Optional[str] = Query(None, pattern="^(facebook|instagram)$"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve las publicaciones guardadas (Facebook/Instagram)
+    Permite filtrar por plataforma o listar todas.
+    """
+    posts = PostService.list_posts(db=db, platform=platform, limit=limit, offset=offset)
+    return [PostService.to_dict(p) for p in posts]
+
 # ---------- /lead-classification ----------
 @router.get("/lead-classification", dependencies=[Depends(require_api_key)])
 def lead_classification(
@@ -393,6 +411,24 @@ def lead_classification(
        "warm": {"count": c_warm},
        "cold": {"count": c_cold},
    }
+
+@router.get("/posts/{platform}/{post_platform_id}/reactions")
+async def get_post_reactions(
+    platform: str,
+    post_platform_id: str,
+    db: Session = Depends(get_db),
+):
+    platform = (platform or "").lower()
+    if platform not in ("facebook", "instagram"):
+        raise HTTPException(400, "platform must be facebook or instagram")
+
+    if platform == "facebook":
+        data = await FacebookIngestionService.fetch_reactions(db, post_platform_id)
+    else:
+        data = await InstagramIngestionService.fetch_likes(db, post_platform_id)
+
+    return {"platform": platform, "post_platform_id": post_platform_id, "reactions": data}
+
 
 # ---------- /keywords ---------- (Aun no tenemos tabla de keywords)
 # @router.get("/keywords", dependencies=[Depends(require_api_key)])

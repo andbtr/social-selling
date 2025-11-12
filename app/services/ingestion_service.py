@@ -5,8 +5,10 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+import asyncio
+
 
 from app.services.meta_auth_service import MetaAuthService
 
@@ -36,26 +38,51 @@ class InstagramIngestionService:
 
         async with httpx.AsyncClient() as client:
             url = f"{InstagramIngestionService.BASE_URL}/{ig_account_id}/media"
+            # Pide todos los fields útiles (aunque ahora solo usamos texto)
             params = {
                 "access_token": access_token,
-                "fields": "id,caption,media_type,media_url,timestamp,permalink"
+                "fields": "id,caption,media_type,media_url,thumbnail_url,timestamp,permalink"
             }
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response.json().get("data", [])
+            r = await client.get(url, params=params)
+            r.raise_for_status()
+            return r.json().get("data", []) or []
+
+    @staticmethod
+    async def fetch_likes(db: Session, media_id: str) -> Dict[str, int]:
+        """Devuelve el número de likes (like_count) de un media de Instagram."""
+        credentials = _get_meta_credentials(db)
+        access_token = credentials.get("user_access_token")
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Missing Meta access token")
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=10.0)) as client:
+            r = await client.get(
+                f"{InstagramIngestionService.BASE_URL}/{media_id}",
+                params={"access_token": access_token, "fields": "like_count"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            return {"likes": int(data.get("like_count", 0))}
+
+    @staticmethod
+    def _parse_iso(ts: str | None):
+        if not ts:
+            return None
+        try:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except Exception:
+            return None
 
     @staticmethod
     def transform_to_post(post_data: dict) -> dict:
-        """Transform Instagram post data to internal format."""
         return {
-            "platform": "INSTAGRAM",
-            "id_comment_platform": post_data.get("id"),
-            "text": post_data.get("caption", ""),
+            "platform": "instagram",                     # 👈 minúsculas
+            "platform_id": post_data.get("id"),          # 👈 clave que usa tu PostCreate
+            "text": post_data.get("caption") or "",
             "media_type": post_data.get("media_type"),
-            "media_url": post_data.get("media_url"),
-            "platform_created_at": post_data.get("timestamp"),
-            "post_url": post_data.get("permalink"),
-            "extra_data": json.dumps(post_data)
+            "media_url": post_data.get("media_url") or post_data.get("thumbnail_url"),
+            "created_at": datetime.now(timezone.utc),
+            "platform_created_at": InstagramIngestionService._parse_iso(post_data.get("timestamp")),
         }
 
     @staticmethod
@@ -71,7 +98,8 @@ class InstagramIngestionService:
                 "fields": "id,text,username,timestamp"
             }
             r = await client.get(url, params=params)
-            return r.json().get("data", [])
+            r.raise_for_status()
+            return r.json().get("data", []) or []
 
     @staticmethod
     def transform_to_comment(comment_data: dict) -> dict:
@@ -80,12 +108,11 @@ class InstagramIngestionService:
             "platform": "INSTAGRAM",
             "id_comment_platform": comment_data.get("id"),
             "author": comment_data.get("username"),
-            "content": comment_data.get("text", ""),
+            "content": comment_data.get("text", "") or "",
             "post_url": None,
-            "platform_created_at": comment_data.get("timestamp"),
-            "extra_data": json.dumps(comment_data)
+            "platform_created_at": InstagramIngestionService._parse_iso(comment_data.get("timestamp")),
         }
-
+    
 class TripAdvisorIngestionService:
     """Service for ingesting data from TripAdvisor API (Content API v1)."""
 
@@ -167,6 +194,7 @@ class TripAdvisorIngestionService:
 
 class FacebookIngestionService:
     BASE_URL = "https://graph.facebook.com/v23.0"
+    REACTION_TYPES = ["LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY"]
 
     @staticmethod
     async def fetch_posts(db: Session, limit: int = 50):
@@ -226,6 +254,61 @@ class FacebookIngestionService:
                     detail=f"Error fetching Facebook comments: {e.response.status_code} - {e.response.text}"
                 )
 
+    @staticmethod
+    async def fetch_reactions(db: Session, post_platform_id: str) -> Dict[str, int]:
+        """
+        Devuelve los conteos de reacciones para un post de Facebook.
+        - 1 request total
+        - 1 por tipo (LIKE, LOVE, HAHA, WOW, SAD, ANGRY)
+        Siempre retorna un diccionario con ceros si algo falla.
+        """
+        credentials = _get_meta_credentials(db)
+        access_token = credentials.get("page_access_token")  # mejor que user_access_token
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Missing page_access_token for reactions")
+
+        counts: Dict[str, int] = {t.lower(): 0 for t in FacebookIngestionService.REACTION_TYPES}
+        counts["total"] = 0
+
+        timeout = httpx.Timeout(15.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                # total
+                r_total = await client.get(
+                    f"{FacebookIngestionService.BASE_URL}/{post_platform_id}/reactions",
+                    params={"access_token": access_token, "summary": "true", "limit": 0},
+                )
+                if not r_total.is_error:
+                    j0 = r_total.json()
+                    counts["total"] = int((j0.get("summary") or {}).get("total_count", 0))
+
+                # por tipo
+                tasks = [
+                    client.get(
+                        f"{FacebookIngestionService.BASE_URL}/{post_platform_id}/reactions",
+                        params={
+                            "access_token": access_token,
+                            "type": t,
+                            "summary": "true",
+                            "limit": 0,
+                        },
+                    )
+                    for t in FacebookIngestionService.REACTION_TYPES
+                ]
+                responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for t, resp in zip(FacebookIngestionService.REACTION_TYPES, responses):
+                    if isinstance(resp, httpx.Response) and not resp.is_error:
+                        jj = resp.json()
+                        counts[t.lower()] = int((jj.get("summary") or {}).get("total_count", 0))
+                    else:
+                        counts[t.lower()] = 0
+
+            except Exception:
+                # dejar counts en ceros
+                pass
+
+        return counts 
 
 async def send_auto_reply_to_comment(db: Session, db_comment, platform: str) -> bool:
     """

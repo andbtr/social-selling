@@ -25,7 +25,7 @@ async def create_post(
     if platform_in not in ("facebook", "instagram"):
         raise HTTPException(status_code=400, detail="platform must be facebook | instagram")
 
-    # ---- Publicación en Meta con timeout para evitar cuelgues ----
+    # ---- Publicación en Meta con timeout ----
     try:
         platform_id, media_type, media_url, platform_created_at = await asyncio.wait_for(
             publish_post(db, platform_in, text, image),
@@ -34,14 +34,15 @@ async def create_post(
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Meta publish timed out")
     except Exception as e:
-        # Propaga el error de Meta (para ver el detalle en el front)
         raise HTTPException(status_code=502, detail=str(e))
 
-    # ---- Persistencia en BD (ENUM en MAYÚSCULAS) ----
+    # ---- Persistencia en BD ----
+    # OJO: PostService.create_post ya convierte a MAYÚSCULAS para el ENUM;
+    # por eso aquí le pasamos minúsculas.
     payload = {
-        "platform": platform_in.upper(),          # tu enum en BD: FACEBOOK/INSTAGRAM
-        "platform_id": platform_id,               # PostService debe mapear a id_post_platform
-        "text": (text or ""),                     # NOT NULL en tu tabla
+        "platform": platform_in,                    # <- minúsculas
+        "platform_id": platform_id,
+        "text": text or "",
         "media_type": media_type,
         "media_url": media_url,
         "created_at": datetime.now(timezone.utc),
@@ -50,19 +51,5 @@ async def create_post(
 
     db_post = PostService.create_post(db, payload)
 
-    # ---- Mapeo explícito ORM -> Schema para evitar 500 ----
-    # platform puede ser Enum('FACEBOOK') o string. Tomamos el valor.
-    platform_value = getattr(db_post.platform, "value", db_post.platform)
-
-    response = {
-        "id": db_post.id,
-        "platform": platform_value,               # "FACEBOOK" | "INSTAGRAM"
-        "platform_id": getattr(db_post, "id_post_platform", None),
-        "text": db_post.text,
-        "media_type": db_post.media_type,
-        "media_url": db_post.media_url,
-        "created_at": db_post.created_at,
-        "platform_created_at": db_post.platform_created_at,
-    }
-
-    return PostResponse.model_validate(response)
+    # ---- Respuesta normalizada (platform en minúsculas) ----
+    return PostService.to_dict(db_post)
