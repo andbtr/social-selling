@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.form_response import FormResponseCreate, FormResponseRead
 from app.services.form_response_service import FormResponseService
-
 router = APIRouter(prefix="/crm", tags=["CRM"])
 
 @router.get("/form", response_class=HTMLResponse)

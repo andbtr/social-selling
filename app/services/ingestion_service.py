@@ -59,7 +59,7 @@ class InstagramIngestionService:
         }
 
     @staticmethod
-    async def fetch_comments(db: Session, post_id: str):
+    async def fetch_comments(db: Session, post_id: str, post_permalink: str = None):
         """Fetches comments for a specific Instagram media ID."""
         credentials = _get_meta_credentials(db)
         access_token = credentials.get("user_access_token")
@@ -68,22 +68,31 @@ class InstagramIngestionService:
             url = f"{InstagramIngestionService.BASE_URL}/{post_id}/comments"
             params = {
                 "access_token": access_token,
-                "fields": "id,text,username,timestamp"
+                "fields": "id,text,username,timestamp,permalink"
             }
             r = await client.get(url, params=params)
-            return r.json().get("data", [])
+            comments = r.json().get("data", [])
+
+            # Add post_permalink to each comment for reference
+            for comment in comments:
+                comment["_post_permalink"] = post_permalink
+
+            return comments
 
     @staticmethod
     def transform_to_comment(comment_data: dict) -> dict:
         """Transform Instagram comment data to internal format."""
+        # Use comment's permalink if available, otherwise use post permalink
+        post_url = comment_data.get("permalink") or comment_data.get("_post_permalink")
+
         return {
             "platform": "INSTAGRAM",
             "id_comment_platform": comment_data.get("id"),
             "author": comment_data.get("username"),
             "content": comment_data.get("text", ""),
-            "post_url": None,
+            "post_url": post_url,
             "platform_created_at": comment_data.get("timestamp"),
-            "extra_data": json.dumps(comment_data)
+            "extra_data": json.dumps({k: v for k, v in comment_data.items() if not k.startswith("_")})
         }
 
 class TripAdvisorIngestionService:

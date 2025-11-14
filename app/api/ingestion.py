@@ -51,8 +51,9 @@ async def ingest_instagram_comments(db: Session = Depends(get_db)):
 
         for post in posts:
             post_id = post["id"]
+            post_permalink = post.get("permalink")
             # Fetch comments for each post
-            comments_data = await InstagramIngestionService.fetch_comments(db, post_id)
+            comments_data = await InstagramIngestionService.fetch_comments(db, post_id, post_permalink)
             for comment_data in comments_data:
                 # Transform to internal format
                 comment_dict = InstagramIngestionService.transform_to_comment(comment_data)
@@ -236,3 +237,5 @@ async def ingest_facebook_comments_for_post(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting Facebook comments for post: {str(e)}")
+
+
