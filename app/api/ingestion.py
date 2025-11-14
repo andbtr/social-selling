@@ -126,7 +126,7 @@ async def ingest_facebook_posts(db: Session = Depends(get_db)):
         created_posts = []
         for p in posts_data:
             post_dict = {
-                "platform": "FACEBOOK",
+                "platform": "facebook",                # 👈 minúsculas
                 "platform_id": p["id"],
                 "text": p.get("message", "") or "",
                 "media_type": "post",
