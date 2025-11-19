@@ -17,8 +17,10 @@ class CRMResponseService:
         from app.core.config import settings
 
         name = lead_score.comment.author or "Cliente"
-        # Add form URL using BASE_URL from config
+        # Add form URL using BASE_URL from config and comment_id
         form_url = f"{settings.base_url}/crm/form?platform={platform}"
+        if comment_id:
+            form_url += f"&comment_id={comment_id}"
 
         if lead_score.priority_level == "HOT":
             message = f"""¡Hola {name}! 🙌
@@ -35,18 +37,16 @@ class CRMResponseService:
 
             Gracias por tu mensaje 😊 Valoramos mucho tus comentarios.
 
-            Si deseas recibir más información, puedes dejarnos tus datos aquí:
-            {form_url}
-
-            Te contactaremos lo más pronto posible"""
+            Si deseas recibir más información, puedes escribirnos por mensaje directo.
+            
+            Te responderemos lo más pronto posible"""
 
         else:  # COLD
             message = f"""Hola {name},
 
             Gracias por tu comentario 💬 Lo tomaremos en cuenta.
 
-            Si deseas comunicarte con nosotros directamente, puedes hacerlo aquí:
-            {form_url}
+            Si deseas comunicarte con nosotros directamente, puedes escribirnos por mensaje directo.
 
             ¡Gracias por tomarte el tiempo de escribirnos!"""
 

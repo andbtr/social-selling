@@ -11,6 +11,7 @@ class FormResponseCreate(BaseModel):
     phone: str = Field(..., min_length=7, description="Phone number")
     interest: Optional[str] = Field(None, description="Interest or message from the user")
     consent: bool = Field(..., description="User consent to be contacted")
+    comment_id: Optional[int] = Field(None, description="Related comment ID from social media")
 
 
 class FormResponseRead(BaseModel):

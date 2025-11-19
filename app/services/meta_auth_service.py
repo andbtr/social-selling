@@ -222,7 +222,7 @@ class MetaAuthService:
                             )
                             return
 
-                print("⚠️ Could not find any Facebook Page linked to an Instagram Business Account.")
+                print("Could not find any Facebook Page linked to an Instagram Business Account.")
 
         except httpx.HTTPStatusError as e:
             print(f"Error discovering assets: {e.response.text}")

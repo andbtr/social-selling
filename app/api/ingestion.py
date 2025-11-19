@@ -11,7 +11,8 @@ from app.services.ingestion_service import (
 from app.services.comment_service import CommentService
 from app.schemas.comment import CommentCreate, CommentResponse
 from typing import List
-
+from app.services.crm_service import CrmService
+from app.core.config import settings
 from app.services.post_service import PostService
 
 router = APIRouter(prefix="/ingest", tags=["Data Ingestion"])
@@ -66,8 +67,10 @@ async def ingest_instagram_comments(db: Session = Depends(get_db)):
                     comment = CommentCreate(**comment_dict)
                     db_comment = CommentService.create_comment(db, comment)
 
-                    # 2. Create CRMLead entry
-                    #crm_lead = create_crm_lead_from_comment(db, db_comment, "INSTAGRAM")
+                    priority = db_comment.lead_score.priority_level
+                    if priority == "HOT" or priority == "WARM":
+                        crm_service = CrmService(crm_api_base_url=settings.crm_api_url)
+                        crm_lead = crm_service.create_crm_lead_from_comment(db, db_comment, "INSTAGRAM")
 
                     # 3. Send automatic reply based on lead score
                     await send_auto_reply_to_comment(db, db_comment, "INSTAGRAM")
@@ -126,7 +129,7 @@ async def ingest_facebook_posts(db: Session = Depends(get_db)):
         created_posts = []
         for p in posts_data:
             post_dict = {
-                "platform": "facebook",                # 👈 minúsculas
+                "platform": "facebook",
                 "platform_id": p["id"],
                 "text": p.get("message", "") or "",
                 "media_type": "post",
@@ -181,8 +184,10 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
                     comment = CommentCreate(**comment_dict)
                     db_comment = CommentService.create_comment(db, comment)
 
-                    # 2. Create CRMLead entry
-                    #crm_lead = create_crm_lead_from_comment(db, db_comment, "FACEBOOK")
+                    priority = db_comment.lead_score.priority_level
+                    if priority == "HOT" or priority == "WARM":
+                        crm_service = CrmService(crm_api_base_url=settings.crm_api_url)
+                        crm_lead = crm_service.create_crm_lead_from_comment(db, db_comment, "FACEBOOK")
 
                     # 3. Send automatic reply based on lead score
                     await send_auto_reply_to_comment(db, db_comment, "FACEBOOK")
@@ -237,5 +242,3 @@ async def ingest_facebook_comments_for_post(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ingesting Facebook comments for post: {str(e)}")
-
-

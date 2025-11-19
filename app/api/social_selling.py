@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, cast, Date, String
 from sqlalchemy.orm import Session
 
+from app.api.ingestion import ingest_facebook_comments, ingest_instagram_comments
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.comment import Comment  # tu modelo real
@@ -12,6 +13,9 @@ from app.models.lead_score import LeadScore
 from typing import Optional, List
 from app.services.post_service import PostService
 from app.services.ingestion_service import FacebookIngestionService, InstagramIngestionService
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/social-selling", tags=["social-selling"])
 
@@ -231,33 +235,41 @@ def sentiment_trend(period: str = "30d", platform: str = "all",
 
 # ---------- /mentions ----------
 @router.get("/mentions", dependencies=[Depends(require_api_key)])
-def mentions(period: str = "30d", platform: str = "all",
-             startDate: str | None = None, endDate: str | None = None,
-             limit: int = 20, offset: int = 0,
-             db: Session = Depends(get_db)):
-    dt_from, dt_to = resolve_period(period, startDate, endDate)
-    q = db.query(Comment).filter(
-        Comment.platform_created_at >= dt_from,
-        Comment.platform_created_at < dt_to
-    )
-    if platform != "all":
-        q = q.filter(Comment.platform == platform)
+async def mentions(period: str = "30d", platform: str = "all",
+                   startDate: str | None = None, endDate: str | None = None,
+                   limit: int = 20, offset: int = 0,
+                   db: Session = Depends(get_db)):
+    try:
+        await ingest_facebook_comments(db)
+        await ingest_instagram_comments(db)
 
-    rows = q.order_by(Comment.platform_created_at.desc()).offset(offset).limit(limit).all()
+        dt_from, dt_to = resolve_period(period, startDate, endDate)
+        q = db.query(Comment).filter(
+            Comment.platform_created_at >= dt_from,
+            Comment.platform_created_at < dt_to
+        )
+        if platform != "all":
+            q = q.filter(Comment.platform == platform)
 
-    items = [{
-        "id": r.id,
-        "platform": getattr(r, "platform", None),
-        "author": getattr(r, "author", None),
-        "content": getattr(r, "content", None),
-        "created_at": r.platform_created_at.isoformat() if getattr(r, "platform_created_at", None) else None,
-        "sentiment": _sentiment_norm(getattr(r, "sentiment", None)),
-        "intention": getattr(r, "intention", None),
-        "rating": getattr(r, "rating", None),
-        "post_url": getattr(r, "post_url", None),
-    } for r in rows]
+        rows = q.order_by(Comment.platform_created_at.desc()).offset(offset).limit(limit).all()
 
-    return {"items": items, "next_offset": offset + limit}
+        items = [{
+            "id": r.id,
+            "platform": getattr(r, "platform", None),
+            "author": getattr(r, "author", None),
+            "content": getattr(r, "content", None),
+            "created_at": r.platform_created_at.isoformat() if getattr(r, "platform_created_at", None) else None,
+            "sentiment": _sentiment_norm(getattr(r, "sentiment", None)),
+            "intention": getattr(r, "intention", None),
+            "rating": getattr(r, "rating", None),
+            "post_url": getattr(r, "post_url", None),
+        } for r in rows]
+
+        return {"items": items, "next_offset": offset + limit}
+    except Exception:
+        logger.exception("Unhandled error in /mentions")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 # ---------- /sentiment-distribution ----------
 @router.get("/sentiment-distribution", dependencies=[Depends(require_api_key)])

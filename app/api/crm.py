@@ -9,10 +9,12 @@ router = APIRouter(prefix="/crm", tags=["CRM"])
 @router.get("/form", response_class=HTMLResponse)
 async def get_form(
     platform: str = Query("INSTAGRAM", description="Platform: INSTAGRAM or FACEBOOK"),
+    comment_id: int | None = Query(None, description="Related comment ID"),
     db: Session = Depends(get_db)
 ):
     """
     Serve public HTML form for capturing lead information.
+    Optional comment_id links the form to the original comment.
     """
     html_form = f"""
     <!DOCTYPE html>
@@ -57,6 +59,7 @@ async def get_form(
                     <div class="platform-value">{platform}</div>
                     <input type="hidden" name="platform" value="{platform}">
                 </div>
+                {f'<input type="hidden" name="comment_id" value="{comment_id}">' if comment_id else ''}
                 <div class="form-group">
                     <label for="fullname">Nombre Completo *</label>
                     <input type="text" id="fullname" name="fullname" required placeholder="Juan Pérez">
@@ -93,7 +96,8 @@ async def get_form(
                     email: formData.get('email'),
                     phone: formData.get('phone'),
                     interest: formData.get('interest'),
-                    consent: formData.get('consent') === 'on'
+                    consent: formData.get('consent') === 'on',
+                    comment_id: formData.get('comment_id') ? parseInt(formData.get('comment_id')) : null
                 }};
                 try {{
                     const response = await fetch('/crm/submit-form', {{

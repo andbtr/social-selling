@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.crm_lead import CRMLead
+from app.models.comment import Comment
 from app.services.crm_service import CrmService
 from app.core.config import settings
 
@@ -10,31 +11,73 @@ class FormResponseService:
     @staticmethod
     def create_crm_lead_from_form(db: Session, form_data: dict) -> CRMLead:
         """
-        Create a CRMLead from form submission data and sync to external CRM.
+        Create or update a CRMLead from form submission data and sync to external CRM.
 
         Args:
             db: Database session
-            form_data: Form data containing platform, fullname, email, phone, interest, consent
+            form_data: Form data containing platform, fullname, email, phone, interest, consent, comment_id
 
         Returns:
-            Created CRMLead object
+            Created or updated CRMLead object
         """
         try:
-            crm_lead = CRMLead(
-                platform=form_data.get("platform"),
-                fullname=form_data.get("fullname"),
-                email=form_data.get("email"),
-                phone=form_data.get("phone"),
-                interest=form_data.get("interest"),
-                # Relations and fields optional for form submissions
-            )
+            comment_id = form_data.get("comment_id")
+            lead_score_id = None
+            post_url = None
+            content = None
+
+            # If comment_id is provided, fetch related comment and lead_score
+            if comment_id:
+                comment = db.query(Comment).filter(Comment.id == comment_id).first()
+                if comment:
+                    lead_score_id = comment.lead_score.id if comment.lead_score else None
+                    post_url = comment.post_url
+                    content = comment.content
+                    print(f"[FormResponseService] Found comment {comment_id} with lead_score_id: {lead_score_id}")
+                else:
+                    print(f"[FormResponseService] Comment {comment_id} not found")
+
+            # Check if CRMLead already exists for this comment_id
+            crm_lead = None
+            if comment_id:
+                crm_lead = db.query(CRMLead).filter(CRMLead.comment_id == comment_id).first()
+
+            if crm_lead:
+                # UPDATE existing CRMLead with form data
+                print(f"[FormResponseService] Updating existing CRMLead {crm_lead.id} for comment {comment_id}")
+                crm_lead.fullname = form_data.get("fullname")
+                crm_lead.email = form_data.get("email")
+                crm_lead.phone = form_data.get("phone")
+                crm_lead.interest = form_data.get("interest")
+                # Update fields from comment if not already set
+                if not crm_lead.lead_score_id and lead_score_id:
+                    crm_lead.lead_score_id = lead_score_id
+                if not crm_lead.post_url and post_url:
+                    crm_lead.post_url = post_url
+                if not crm_lead.content and content:
+                    crm_lead.content = content
+            else:
+                # CREATE new CRMLead
+                print(f"[FormResponseService] Creating new CRMLead for comment {comment_id}")
+                crm_lead = CRMLead(
+                    platform=form_data.get("platform"),
+                    fullname=form_data.get("fullname"),
+                    email=form_data.get("email"),
+                    phone=form_data.get("phone"),
+                    interest=form_data.get("interest"),
+                    comment_id=comment_id,
+                    lead_score_id=lead_score_id,
+                    post_url=post_url,
+                    content=content,
+                )
+
             db.add(crm_lead)
             db.commit()
             db.refresh(crm_lead)
 
-            print(f"[FormResponseService] CRMLead from form created: {crm_lead.id}")
+            print(f"[FormResponseService] CRMLead {crm_lead.id} saved successfully")
 
-            # Try to sync to external CRM if URL is configured
+            # Always send lead to external CRM
             if settings.crm_api_url:
                 try:
                     crm_service = CrmService(settings.crm_api_url)
@@ -52,6 +95,6 @@ class FormResponseService:
 
         except Exception as e:
             db.rollback()
-            print(f"[FormResponseService] Error creating CRMLead from form: {str(e)}")
+            print(f"[FormResponseService] Error processing form: {str(e)}")
             raise
 
