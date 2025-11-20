@@ -3,6 +3,7 @@ from app.models.comment import Comment
 from app.schemas.comment import CommentCreate
 from typing import Optional, List
 
+from app.services.keyword_service import KeywordService
 from app.services.lead_scoring_service import LeadScoringService
 from app.services.post_service import PostService
 from app.services.sentiment_service import analize_sentiment
@@ -38,6 +39,12 @@ class CommentService:
         print(db_comment.sentiment, db_comment.sentiment_confidence, db_comment.intention, db_comment.intention_confidence)
         db.commit()
         db.refresh(db_comment)
+
+        # Extraer keywords con LLM
+        try:
+            KeywordService.analyze_comment_keywords(db, db_comment, max_keywords=3)
+        except Exception as e:
+            print(f"[keyword-service] error: {e}")
 
         # calcular y guardar lead score automáticamente
         try:

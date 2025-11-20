@@ -41,5 +41,11 @@ class Comment(Base):
 
     lead_score = relationship("LeadScore", back_populates="comment", uselist=False, cascade="all, delete-orphan")
 
+    keywords = relationship(
+        "CommentKeyword",
+        back_populates="comment",
+        cascade="all, delete-orphan"
+    )
+
     def __repr__(self):
         return f"<Comment(id={self.id}, platform={self.platform}, author={self.author})>"

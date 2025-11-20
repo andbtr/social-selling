@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, cast, Date, String
 from sqlalchemy.orm import Session
+from collections import defaultdict
+import json
 
 from app.api.ingestion import ingest_facebook_comments, ingest_instagram_comments
 from app.core.config import settings
@@ -441,48 +443,98 @@ async def get_post_reactions(
 
     return {"platform": platform, "post_platform_id": post_platform_id, "reactions": data}
 
+# ---------- /keywords ----------
+@router.get("/keywords", dependencies=[Depends(require_api_key)])
+def keywords_cloud(
+    period: str = "30d",
+    platform: str = "all",
+    startDate: str | None = None,
+    endDate: str | None = None,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    dt_from, dt_to = resolve_period(period, startDate, endDate)
 
-# ---------- /keywords ---------- (Aun no tenemos tabla de keywords)
-# @router.get("/keywords", dependencies=[Depends(require_api_key)])
-# def keywords_cloud(
-#    period: str = "7d",
-#    startDate: str | None = None,
-#    endDate: str | None = None,
-#    limit: int = 20,
-#    db: Session = Depends(get_db)):
-#    """
-#    Devuelve:
-#    [
-#      {"keyword":"excelente","count":31},
-#      {"keyword":"ubicación","count":27},
-#      ...
-#    ]
-#    """
-#    dt_from, dt_to = resolve_period(period, startDate, endDate)
-#    subquery con sólo los comments del rango que sí tienen keywords
-#    base = (
-#        db.query(Comment)
-#        .filter(
-#            Comment.platform_created_at >= dt_from,
-#            Comment.platform_created_at < dt_to,
-#            Comment.keywords.isnot(None)  # <- asumiendo columna keywords existe en ORM
-#        )
-#        .subquery()
-#    )
-#    unnest en Postgres
-#    kw_rows = (
-#        db.query(
-#            unnest(base.c.keywords).label("kw"),
-#            func.count().label("c")
-#        )
-#        .group_by("kw")
-#        .order_by(func.count().desc())
-#        .limit(limit)
-#        .all()
-#    )
-#    out = []
-#    for kw, c in kw_rows:
-#        if kw:
-#            out.append({"keyword": kw, "count": c})
-#    return out
+    # 1) filtro base por tiempo (y plataforma)
+    q = db.query(Comment).filter(
+        Comment.platform_created_at >= dt_from,
+        Comment.platform_created_at < dt_to,
+    )
+    if platform != "all":
+        q = q.filter(Comment.platform == platform)
 
+    comments = q.all()
+
+    # 2) agregador
+    agg: dict[str, dict[str, int]] = defaultdict(lambda: {
+        "total": 0,
+        "positive": 0,
+        "neutral": 0,
+        "negative": 0,
+    })
+
+    for c in comments:
+        s_norm = _sentiment_norm(getattr(c, "sentiment", None)) or "neutral"
+
+        raw_kws = getattr(c, "keywords", None)
+        if not raw_kws:
+            continue
+
+        # keywords puede ser: lista de objetos, lista de strings, string JSON, etc.
+        if isinstance(raw_kws, str):
+            try:
+                kws = json.loads(raw_kws)
+            except Exception:
+                kws = [raw_kws]
+        else:
+            kws = raw_kws
+
+        if not isinstance(kws, (list, tuple, set)):
+            kws = [kws]
+
+        for kw in kws:
+            if kw is None:
+                continue
+
+            if isinstance(kw, str):
+                word = kw
+            elif hasattr(kw, "word"):
+                word = getattr(kw, "word")
+            elif hasattr(kw, "keyword"):
+                word = getattr(kw, "keyword")
+            else:
+                # fallback por si acaso
+                word = str(kw)
+
+            word = str(word).strip().lower()
+            if not word:
+                continue
+
+            agg[word]["total"] += 1
+            if s_norm in ("positive", "neutral", "negative"):
+                agg[word][s_norm] += 1
+
+    def to_spanish_label(s: str) -> str:
+        if s == "positive":
+            return "positivo"
+        if s == "negative":
+            return "negativo"
+        return "neutral"
+
+    items = []
+    for word, stats in agg.items():
+        total = stats["total"]
+        if total <= 0:
+            continue
+        dominant = max(
+            ("positive", "neutral", "negative"),
+            key=lambda k: stats[k],
+        )
+        items.append({
+            "word": word,
+            "count": total,
+            "sentiment": to_spanish_label(dominant),
+        })
+
+    items.sort(key=lambda x: x["count"], reverse=True)
+    return items[:limit]
