@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     meta_fb_page_access_token: Optional[str] = Field(default=None, env="META_FB_PAGE_ACCESS_TOKEN")
     meta_fb_access_token: Optional[str] = Field(default=None, env="META_FB_ACCESS_TOKEN")
 
+    # Gemini LLM API Key
+    gemini_api_key: str | None = Field(default=None, env="GEMINI_API_KEY")
+
     # Instagram Business Account Publishing
     instagram_business_account_id: Optional[str] = Field(default=None, env="INSTAGRAM_BUSINESS_ACCOUNT_ID")
     meta_ig_access_token: Optional[str] = Field(default=None, env="META_IG_ACCESS_TOKEN")
