@@ -17,4 +17,4 @@ class Post(Base):
     platform_created_at = Column(DateTime(timezone=True))
 
     def __repr__(self):
-        return f"<Post(id={self.id}, platform={self.platform}, platform_id={self.platform_id})>"
+        return f"<Post(id={self.id}, platform={self.platform}, platform_id={self.id_post_platform})>"

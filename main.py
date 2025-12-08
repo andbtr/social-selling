@@ -45,21 +45,6 @@ app.include_router(crm_router)
 app.include_router(posts_router) 
 
 
-@app.get("/", tags=["Health"])
-async def root():
-    """Root endpoint for health check."""
-    return {
-        "message": "Social Listening Platform API",
-        "version": settings.app_version,
-        "status": "running",
-    }
-
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
-
 if __name__ == "__main__":
     import uvicorn
 
