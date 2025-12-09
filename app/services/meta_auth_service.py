@@ -43,7 +43,8 @@ class MetaAuthService:
             "pages_manage_posts",
             "pages_read_engagement",
             "instagram_basic",
-            "instagram_manage_comments"
+            "instagram_manage_comments",
+            "instagram_manage_insights"
         ]
         params = {
             "client_id": settings.meta_app_id,

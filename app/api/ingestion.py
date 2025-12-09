@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -14,6 +15,7 @@ from typing import List
 from app.services.crm_service import CrmService
 from app.core.config import settings
 from app.services.post_service import PostService
+from datetime import datetime
 
 router = APIRouter(prefix="/ingest", tags=["Data Ingestion"])
 
@@ -135,6 +137,7 @@ async def ingest_facebook_posts(db: Session = Depends(get_db)):
                 "media_type": "post",
                 "media_url": p.get("permalink_url"),
                 "platform_created_at": p.get("created_time"),
+                "created_at": datetime.utcnow()
             }
 
             # 2) Evitar duplicados por platform_id (igual que haces en IG)
