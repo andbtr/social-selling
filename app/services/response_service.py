@@ -1,3 +1,5 @@
+from app.core.config import settings
+
 class CRMResponseService:
     """Service for generating CRM response messages."""
 
@@ -14,40 +16,37 @@ class CRMResponseService:
         Returns:
             Formatted response message with form URL
         """
-        from app.core.config import settings
 
-        name = lead_score.comment.author or "Cliente"
         # Add form URL using BASE_URL from config and comment_id
         form_url = f"{settings.base_url}/crm/form?platform={platform}"
         if comment_id:
             form_url += f"&comment_id={comment_id}"
 
         if lead_score.priority_level == "HOT":
-            message = f"""¡Hola {name}! 🙌
+            message = f"""¡Hola! 🙌 Gracias por escribirnos.
+        Vimos tu interés y queremos ayudarte de inmediato.
 
-            Gracias por tu interés 💬 Nos encantaría ayudarte lo antes posible.
+        👉 Completa este breve formulario y te contactamos enseguida:
+        {form_url}
 
-            Por favor completa este breve formulario para ponernos en contacto contigo:
-            {form_url}
-
-            🚀 Te contactaremos lo más rápido posible"""
+        Será un gusto atenderte 🚀"""
 
         elif lead_score.priority_level == "WARM":
-            message = f"""Hola {name} 👋
+            message = f"""¡Hola! 👋 Gracias por tu mensaje 😊
+        Si deseas recibir más información personalizada, puedes completar este breve formulario:
 
-            Gracias por tu mensaje 😊 Valoramos mucho tus comentarios.
+        👉 {form_url}
 
-            Si deseas recibir más información, puedes escribirnos por mensaje directo.
-            
-            Te responderemos lo más pronto posible"""
+        Nos comunicaremos contigo apenas lo envíes ✅"""
 
         else:  # COLD
-            message = f"""Hola {name},
+            message = f"""¡Hola! 👋 Gracias por tu comentario 💬
+        Si en algún momento deseas que nos contactemos contigo, puedes completar este formulario:
 
-            Gracias por tu comentario 💬 Lo tomaremos en cuenta.
+        👉 {form_url}
 
-            Si deseas comunicarte con nosotros directamente, puedes escribirnos por mensaje directo.
+        ¡Que tengas un excelente día! 😊"""
 
-            ¡Gracias por tomarte el tiempo de escribirnos!"""
+        return message
 
         return message
