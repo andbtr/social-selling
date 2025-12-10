@@ -8,49 +8,51 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-
-@router.get("/meta/login", tags=["Meta OAuth"])
-async def meta_login():
+@router.get("/meta/auth-url", tags=["Meta OAuth"])
+async def get_meta_auth_url():
     """
-    Initiates the Meta OAuth2 authentication flow.
-    Redirects the user to Meta's authorization URL.
+    Devuelve la URL de autorización de Meta.
     """
     auth_url = MetaAuthService.get_auth_url()
-    return RedirectResponse(url=auth_url)
+    return {"auth_url": auth_url}
 
 
-@router.get("/meta/callback", tags=["Meta OAuth"])
-async def meta_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
+@router.post("/meta/exchange-code", tags=["Meta OAuth"])
+async def exchange_meta_code(code: str, db: Session = Depends(get_db)):
     """
-    Handles the callback from Meta after user authorization.
-    Exchanges the authorization code for an access token and stores credentials.
+    Intercambia el código por dos tokens de larga duración:
+    - user_access_token (para acceder a recursos del usuario)
+    - page_access_token (para gestionar la página)
+
+    El front llama esto después que Meta redirige con el código.
     """
     if not code:
         raise HTTPException(status_code=400, detail="No authorization code provided")
-    
+
     token = MetaAuthService.exchange_code_for_token(db, code)
     if not token:
         raise HTTPException(status_code=400, detail="Failed to exchange code for token")
-    
-    # Redirect to the status page for a better user experience
-    return RedirectResponse(url="/auth/meta/status")
+
+    return {
+        "status": "success",
+        "message": "Both tokens exchanged and stored (user + page long-lived tokens)"
+    }
 
 
 @router.get("/meta/status", tags=["Meta OAuth"])
 async def meta_status(db: Session = Depends(get_db)):
     """
-    Check if Meta credentials are already stored and valid.
+    Verifica si hay credenciales Meta guardadas en BD.
     """
     credentials = MetaAuthService.get_credentials_from_db(db)
     if credentials:
         return {
-            "status": "authenticated",
+            "authenticated": True,
             "fb_page_id": credentials.get("fb_page_id"),
             "ig_business_account_id": credentials.get("ig_business_account_id"),
-            "message": "Meta credentials found in database."
+            "message": "Meta credentials found in database"
         }
-    else:
-        return {
-            "status": "not_authenticated",
-            "message": "No Meta credentials found in database. Please visit /auth/meta/login to authenticate."
-        }
+    return {
+        "authenticated": False,
+        "message": "No Meta credentials found"
+    }
