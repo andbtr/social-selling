@@ -1,31 +1,63 @@
-import pickle
+import re
+import unicodedata
 import numpy as np
+from difflib import SequenceMatcher
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
+import pickle
 
 
 class ClassicMLIntentClassifier:
     """
-    Clasificador de intención basado en features tradicionales.
-    Completamente independiente de BART.
+    Clasificador robusto con:
+    - Normalización de texto
+    - Fuzzy keyword matching
+    - Character n-grams en TF-IDF
+    - Features adicionales
     """
 
     def __init__(self):
         self.model = None
-        self.vectorizer = TfidfVectorizer(
-            max_features=500, ngram_range=(1, 2), min_df=2  # unigrams + bigrams
+
+        # TF-IDF combinado: word + character n-grams
+        self.word_vectorizer = TfidfVectorizer(max_features=300, ngram_range=(1, 2), min_df=2)
+
+        self.char_vectorizer = TfidfVectorizer(
+            max_features=200, analyzer="char_wb", ngram_range=(3, 5), min_df=2
         )
+
         self.scaler = StandardScaler()
 
-    def extract_handcrafted_features(self, text: str) -> np.ndarray:
-        """
-        Extrae features manuales (NO usa BART).
-        """
-        if not text or not text.strip():
-            return np.zeros(15)
+    def normalize_text(self, text: str) -> str:
+        """Normalización robusta."""
+        if not text:
+            return ""
+        text = text.lower()
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join([c for c in text if not unicodedata.combining(c)])
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
 
-        text_lower = text.lower()
+    def fuzzy_keyword_match(self, text: str, keyword: str, threshold: float = 0.83) -> bool:
+        """Match tolerante a typos."""
+        text_norm = self.normalize_text(text)
+        words = text_norm.split()
+
+        for word in words:
+            if len(word) < 3:
+                continue
+            similarity = SequenceMatcher(None, word, keyword).ratio()
+            if similarity >= threshold:
+                return True
+        return False
+
+    def extract_handcrafted_features(self, text: str) -> np.ndarray:
+        """Features robustas con fuzzy matching."""
+        if not text or not text.strip():
+            return np.zeros(22)
+
+        text_norm = self.normalize_text(text)
 
         features = [
             # Longitud
@@ -35,74 +67,81 @@ class ClassicMLIntentClassifier:
             1 if "?" in text else 0,
             text.count("?"),
             1 if "!" in text else 0,
-            # Keywords de ALTA intención
-            1 if any(kw in text_lower for kw in ["precio", "cuánto", "cuanto", "costo"]) else 0,
-            1 if any(kw in text_lower for kw in ["reservar", "reserva", "booking"]) else 0,
+            # ALTA intención - con fuzzy matching
+            1 if any(kw in text_norm for kw in ["precio", "cuanto", "costo"]) else 0,
+            1 if self.fuzzy_keyword_match(text, "reservar", 0.83) else 0,
+            1 if self.fuzzy_keyword_match(text, "reserva", 0.83) else 0,
+            1 if self.fuzzy_keyword_match(text, "disponible", 0.85) else 0,
+            1 if any(kw in text_norm for kw in ["urgente", "ya", "ahora"]) else 0,
+            1 if any(kw in text_norm for kw in ["quiero", "necesito", "deseo", "quisiera"]) else 0,
+            # MEDIA intención
+            1 if any(kw in text_norm for kw in ["piscina", "desayuno", "wifi"]) else 0,
+            1 if any(kw in text_norm for kw in ["incluye", "tienen", "hay"]) else 0,
+            # BAJA intención
+            1 if any(kw in text_norm for kw in ["hermoso", "lindo", "bonito"]) else 0,
+            1 if any(kw in text_norm for kw in ["gracias", "thanks"]) else 0,
+            1 if any(c in text for c in ["👍", "❤️", "😊"]) else 0,
+            # Features adicionales
+            sum(1 for w in ["como", "cuanto", "donde"] if w in text_norm),
+            np.mean([len(w) for w in text.split()]) if text.split() else 0,
+            1 if re.search(r"\d", text) else 0,
+            # Combinaciones poderosas
             (
                 1
-                if any(kw in text_lower for kw in ["disponible", "disponibilidad", "availability"])
+                if (
+                    any(v in text_norm for v in ["quiero", "necesito"])
+                    and self.fuzzy_keyword_match(text, "reservar", 0.8)
+                )
                 else 0
             ),
-            1 if "urgente" in text_lower else 0,
-            # Keywords de MEDIA intención
-            1 if any(kw in text_lower for kw in ["piscina", "desayuno", "wifi", "servicio"]) else 0,
-            1 if any(kw in text_lower for kw in ["incluye", "tienen", "hay"]) else 0,
-            # Keywords de BAJA intención
-            1 if any(kw in text_lower for kw in ["hermoso", "lindo", "bonito", "precioso"]) else 0,
-            1 if any(kw in text_lower for kw in ["gracias", "thanks"]) else 0,
-            1 if any(char in text for char in ["👍", "❤️", "😊"]) else 0,
-            # Ratio de palabras interrogativas
-            sum(1 for word in ["cómo", "cuánto", "dónde", "cuándo", "qué"] if word in text_lower),
+            1 if (("precio" in text_norm or "cuanto" in text_norm) and "?" in text) else 0,
+            (
+                1 if len(text.split()) <= 3 and "?" not in text else 0
+            ),  # Comentarios muy cortos sin pregunta
         ]
 
         return np.array(features)
 
     def prepare_features(self, texts: list[str]) -> np.ndarray:
-        """
-        Combina TF-IDF + features manuales.
-        """
-        # 1. TF-IDF (captura palabras importantes)
-        tfidf_features = self.vectorizer.transform(texts).toarray()
+        """Combina TF-IDF (word + char) + features manuales."""
+        # TF-IDF por palabras
+        word_features = self.word_vectorizer.transform(texts).toarray()
 
-        # 2. Features manuales
+        # TF-IDF por caracteres (captura typos)
+        char_features = self.char_vectorizer.transform(texts).toarray()
+
+        # Features manuales
         manual_features = np.array([self.extract_handcrafted_features(text) for text in texts])
 
-        # 3. Combinar
-        combined = np.hstack([tfidf_features, manual_features])
+        # Combinar todo
+        combined = np.hstack([word_features, char_features, manual_features])
 
         return combined
 
     def train(self, texts: list[str], labels: list[str]):
-        """
-        Entrena el modelo clásico.
+        """Entrena con features mejoradas."""
+        print("Entrenando modelo ML mejorado...")
 
-        Args:
-            texts: Lista de comentarios
-            labels: Lista de etiquetas ('ALTA', 'MEDIA', 'BAJA')
-        """
-        print("Entrenando modelo ML clásico...")
-
-        # Fit vectorizer
-        self.vectorizer.fit(texts)
+        # Fit vectorizers
+        self.word_vectorizer.fit(texts)
+        self.char_vectorizer.fit(texts)
 
         # Preparar features
         X = self.prepare_features(texts)
-
-        # Escalar features
         X_scaled = self.scaler.fit_transform(X)
 
         # Entrenar RandomForest
         self.model = RandomForestClassifier(
             n_estimators=200,
-            max_depth=10,
-            min_samples_split=5,
+            max_depth=12,
+            min_samples_split=4,
+            min_samples_leaf=2,
             random_state=42,
-            class_weight="balanced",  # Importante si hay desbalance
+            class_weight="balanced",
         )
 
         self.model.fit(X_scaled, labels)
-
-        print("✓ Modelo ML clásico entrenado")
+        print("✓ Modelo ML mejorado entrenado")
 
     def predict(self, text: str) -> tuple[str, float]:
         """
@@ -129,7 +168,13 @@ class ClassicMLIntentClassifier:
         """Guarda modelo entrenado."""
         with open(filepath, "wb") as f:
             pickle.dump(
-                {"model": self.model, "vectorizer": self.vectorizer, "scaler": self.scaler}, f
+                {
+                    "model": self.model,
+                    "word_vectorizer": self.word_vectorizer,  # ⭐ CORREGIDO
+                    "char_vectorizer": self.char_vectorizer,  # ⭐ NUEVO
+                    "scaler": self.scaler,
+                },
+                f,
             )
         print(f"✓ Modelo guardado en {filepath}")
 
@@ -138,6 +183,7 @@ class ClassicMLIntentClassifier:
         with open(filepath, "rb") as f:
             data = pickle.load(f)
             self.model = data["model"]
-            self.vectorizer = data["vectorizer"]
+            self.word_vectorizer = data["word_vectorizer"]  # ⭐ CORREGIDO
+            self.char_vectorizer = data["char_vectorizer"]  # ⭐ NUEVO
             self.scaler = data["scaler"]
         print(f"✓ Modelo cargado desde {filepath}")

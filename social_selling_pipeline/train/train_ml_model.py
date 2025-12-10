@@ -52,5 +52,5 @@ print(f"Confianza mínima: {np.min(confidences):.3f}")
 print(f"Confianza máxima: {np.max(confidences):.3f}")
 
 # 7. Guardar
-classifier.save("ml_intent_model.pkl")
-print("\n✓ Modelo guardado en 'ml_intent_model.pkl'")
+classifier.save("ml/models/ml_intent_model.pkl")
+print("\n✓ Modelo guardado en 'ml/models/ml_intent_model.pkl'")

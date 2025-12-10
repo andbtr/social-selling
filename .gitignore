@@ -212,3 +212,6 @@ __marimo__/
 
 # Credentials storage
 storage.json
+
+# Data
+social_selling_pipeline/data/raw/
