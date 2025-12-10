@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     # Instagram Business Account Publishing
     instagram_business_account_id: Optional[str] = Field(default=None, env="INSTAGRAM_BUSINESS_ACCOUNT_ID")
     meta_ig_access_token: Optional[str] = Field(default=None, env="META_IG_ACCESS_TOKEN")
+    frontend_url: Optional[str] = Field(default=None, env="FRONTEND_URL")
 
     # --- helper para tomar siempre el mejor token ---
     @property
