@@ -1,4 +1,4 @@
-from ml.ensemble.ensemble_intent_classifier import EnsembleIntentClassifier
+# app/services/intention_service.py
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,15 +10,15 @@ _ensemble = None
 def initialize_ensemble(ml_model_path: str = None):
     """
     Inicializa el sistema ensemble.
-    Llamar UNA VEZ al inicio de la aplicación (en lifespan startup).
-
-    Args:
-        ml_model_path: Path al modelo ML entrenado (opcional)
     """
     global _ensemble
 
     try:
         logger.info("Inicializando clasificador de intención...")
+
+        # ⭐ IMPORT AQUÍ - se ejecuta solo una vez durante startup
+        from ml.ensemble.ensemble_intent_classifier import EnsembleIntentClassifier
+
         _ensemble = EnsembleIntentClassifier(ml_model_path)
         logger.info("✓ Clasificador inicializado correctamente")
 
@@ -32,15 +32,7 @@ def initialize_ensemble(ml_model_path: str = None):
 
 
 def analyze_intent(text: str) -> tuple[str, float]:
-    """
-    Analiza intención usando ensemble de modelos.
-
-    Args:
-        text (str): Texto a analizar
-
-    Returns:
-        tuple: (intent_label, confidence_score)
-    """
+    """Analiza intención usando ensemble de modelos."""
     if _ensemble is None:
         raise RuntimeError(
             "Ensemble no inicializado. " "Asegúrate de llamar initialize_ensemble() en el startup."
@@ -58,9 +50,7 @@ def analyze_intent(text: str) -> tuple[str, float]:
 
 
 def analyze_intent_detailed(text: str) -> dict:
-    """
-    Análisis detallado con información de ambos modelos.
-    """
+    """Análisis detallado con información de ambos modelos."""
     if _ensemble is None:
         raise RuntimeError("Ensemble no inicializado.")
 

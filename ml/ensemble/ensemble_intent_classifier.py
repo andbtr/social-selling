@@ -1,4 +1,3 @@
-# ensemble_intent_classifier.py
 from transformers import pipeline
 from social_selling_pipeline.train.ml_intent_model import ClassicMLIntentClassifier
 
