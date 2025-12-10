@@ -19,9 +19,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY preload_models.py .
 RUN python preload_models.py
 
-
 ENV HF_HUB_OFFLINE=1
 ENV TRANSFORMERS_OFFLINE=1
+ENV OMP_NUM_THREADS=2
+ENV MKL_NUM_THREADS=2
 
 
 # Copiar código
@@ -29,4 +30,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
