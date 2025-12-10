@@ -14,12 +14,6 @@ A platform for ingesting, analyzing and monitoring comments from social media (I
 
 ## 🚀 Quick Start: Run Locally
 
-### Requirements
-
-- Python 3.10+
-- pip
-- Git
-
 ### Installation (5 minutes)
 
 ```bash
@@ -48,16 +42,6 @@ uvicorn main:app --reload
 
 **Server will be at**: `http://127.0.0.1:8000`
 
----
-
-## 🔌 Main Endpoints
-
-### Health Check
-```bash
-curl http://127.0.0.1:8000/health
-# {"status": "healthy"}
-```
-
 ### Meta Authentication (OAuth)
 ```bash
 # Start authentication flow
@@ -65,34 +49,6 @@ http://127.0.0.1:8000/auth/meta/login
 
 # Check if authenticated
 curl http://127.0.0.1:8000/auth/meta/status
-```
-
-### Comments
-```bash
-# List comments
-GET /comments?skip=0&limit=100&platform=instagram
-
-# Get a comment
-GET /comments/1
-
-# Create comment (test)
-POST /comments
-Body: {"platform": "instagram", "platform_id": "123", "author": "user", "content": "text"}
-
-# Update
-PUT /comments/1
-
-# Delete
-DELETE /comments/1
-```
-
-### Ingest Data
-```bash
-# Fetch Instagram comments
-POST /ingest/instagram/comments
-
-# Fetch Facebook posts
-POST /ingest/facebook/posts
 ```
 
 ### Interactive Documentation
@@ -133,48 +89,6 @@ http://127.0.0.1:8000/auth/meta/login
 # 4. Done, token encrypted and saved in DB
 ```
 
----
-
-## 📁 Project Structure
-
-```
-app/
-├── api/                 # HTTP routes
-│   ├── auth.py         # OAuth2
-│   ├── comments.py     # Comments CRUD
-│   ├── ingestion.py    # Fetch data from APIs
-│   └── ...
-│
-├── services/           # Business logic
-│   ├── comment_service.py
-│   ├── meta_auth_service.py
-│   ├── sentiment_service.py  # NLP analysis
-│   ├── ingestion_service.py
-│   └── ...
-│
-├── models/             # DB models (SQLAlchemy)
-│   ├── comment.py
-│   ├── post.py
-│   └── ...
-│
-├── schemas/            # Data validation (Pydantic)
-│   ├── comment.py
-│   └── ...
-│
-├── core/
-│   ├── config.py       # Environment variables
-│   └── database.py     # DB connection
-│
-└── seeders/            # Test data
-```
-
----
-
-## 🗄️ Database
-
-**Default**: SQLite (`social_listening.db`)
-**Production**: PostgreSQL (configure in `.env`)
-
 ### Useful Commands
 
 ```bash
@@ -214,16 +128,6 @@ curl http://127.0.0.1:8000/health
 alembic revision --autogenerate -m "description"
 alembic upgrade head
 ```
-
-### Tests
-```bash
-pytest -v
-pytest tests/api -v
-pytest -k "oauth" -v
-```
-
----
-
 ## 🐛 Common Issues
 
 ### "Address already in use" (port 8000)
@@ -245,39 +149,4 @@ uvicorn main:app --reload --port 8001
 - Visit: `http://127.0.0.1:8000/auth/meta/login`
 - Login and approve permissions
 
-### "No module named 'app'"
-```bash
-# Make sure you're in the root folder
-cd /home/ander/Projects/social-selling
-source venv/bin/activate
-```
-
----
-
-## 📦 Main Dependencies
-
-- **FastAPI** - Web framework
-- **SQLAlchemy** - Database ORM
-- **Pydantic** - Data validation
-- **Transformers** - NLP models
-- **httpx** - Async HTTP client
-- **python-multipart** - Form handling
-
----
-
-## 🚀 Next Steps
-
-- [ ] Setup Meta OAuth
-- [ ] Run server locally
-- [ ] Ingest first comments
-- [ ] Verify sentiment analysis
-- [ ] Make code changes
-
----
-
-## 📞 Help
-
-- **Interactive Swagger**: http://127.0.0.1:8000/docs
-- **Server logs**: Shown in terminal where `uvicorn` is running
-- **SQLite database**: `sqlite3 social_listening.db` to inspect
 

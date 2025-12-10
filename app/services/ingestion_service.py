@@ -76,14 +76,14 @@ class InstagramIngestionService:
     def transform_to_post(post_data: dict) -> dict:
         """Transform Instagram post data to internal format."""
         return {
-            "platform": "INSTAGRAM",
-            "id_comment_platform": post_data.get("id"),
+            "platform": "instagram",
+            "platform_id": post_data.get("id"),
             "text": post_data.get("caption", ""),
             "media_type": post_data.get("media_type"),
             "media_url": post_data.get("media_url"),
             "platform_created_at": post_data.get("timestamp"),
             "post_url": post_data.get("permalink"),
-            "extra_data": json.dumps(post_data)
+            "created_at": datetime.utcnow()
         }
 
     @staticmethod

@@ -6,8 +6,6 @@ from app.core.database import init_db
 from app.api import comments_router, ingestion_router, auth_router, lead_scoring_router
 from app.api.social_selling import router as social_router
 from app.api.crm import router as crm_router
-
-# Nuevo router de posts
 from app.api.social_posts import router as posts_router
 
 # Lifespan event handler
@@ -20,7 +18,6 @@ async def lifespan(app: FastAPI):
     # Shutdown
     pass
 
-
 # Create FastAPI application
 app = FastAPI(
     title=settings.app_name,
@@ -28,7 +25,6 @@ app = FastAPI(
     description="Social Listening Platform for ingesting and analyzing comments from Meta and TripAdvisor",
     lifespan=lifespan,
 )
-
 
 # Configure CORS
 app.add_middleware(
@@ -47,24 +43,6 @@ app.include_router(auth_router)
 app.include_router(social_router)
 app.include_router(crm_router)
 app.include_router(posts_router) 
-
-
-
-
-@app.get("/", tags=["Health"])
-async def root():
-    """Root endpoint for health check."""
-    return {
-        "message": "Social Listening Platform API",
-        "version": settings.app_version,
-        "status": "running",
-    }
-
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
 
 
 if __name__ == "__main__":
