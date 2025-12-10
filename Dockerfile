@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=UTF-8
+
 WORKDIR /app
 
 # Copiar requirements
@@ -13,9 +16,17 @@ RUN pip install --no-cache-dir \
 # Instalar TODAS las dependencias (torch se saltará porque ya está)
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY preload_models.py .
+RUN python preload_models.py
+
+
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
+
+
 # Copiar código
 COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
