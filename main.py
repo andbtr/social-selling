@@ -14,7 +14,7 @@ from app.api.social_selling import router as social_router
 from app.api.crm import router as crm_router
 from app.api.social_posts import router as posts_router
 
-from app.services.intention_service import initialize_ensemble
+# from app.services.intention_service import initialize_ensemble
 import logging
 
 logger = logging.getLogger(__name__)
