@@ -24,31 +24,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
-    # ========== STARTUP ==========
-    logger.info("🚀 Iniciando aplicación...")
-
-    # 1. Inicializar base de datos
+    # Startup
     init_db()
-    logger.info("✓ Base de datos inicializada")
-
-    # 2. Inicializar modelo de intención
-    try:
-        logger.info("🤖 Cargando modelos de clasificación de intención...")
-        initialize_ensemble(ml_model_path="ml/models/ml_intent_model.pkl")
-        logger.info("✓ Modelos de intención cargados correctamente")
-    except FileNotFoundError:
-        logger.warning("⚠️  Modelo ML no encontrado. Solo se usará BART (zero-shot)")
-        initialize_ensemble(ml_model_path=None)  # Solo BART
-    except Exception as e:
-        logger.error(f"❌ Error cargando modelos de intención: {e}")
-        logger.info("⚠️  Continuando sin modelo de intención...")
-
-    logger.info("✅ Aplicación lista para recibir requests")
-
     yield
-
-    # ========== SHUTDOWN ==========
-    logger.info("👋 Cerrando aplicación...")
+    # Shutdown
     pass
 
 
@@ -77,7 +56,7 @@ app.include_router(auth_router)
 app.include_router(social_router)
 app.include_router(crm_router)
 app.include_router(posts_router)
-app.include_router(intention_router)
+# app.include_router(intention_router)
 
 
 if __name__ == "__main__":
