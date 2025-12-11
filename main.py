@@ -8,7 +8,7 @@ from app.api import (
     ingestion_router,
     auth_router,
     lead_scoring_router,
-    intention_router,
+    # intention_router,
 )
 from app.api.social_selling import router as social_router
 from app.api.crm import router as crm_router
