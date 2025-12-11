@@ -2,6 +2,7 @@ from transformers import pipeline
 
 analyzer = pipeline("sentiment-analysis", model="pysentimiento/robertuito-sentiment-analysis")
 
+
 def analize_sentiment(text: str) -> tuple[str, float]:
     """
     Analyzes the sentiment of the given text using the Robertuito model.
