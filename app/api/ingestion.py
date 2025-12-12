@@ -49,12 +49,12 @@ async def ingest_instagram_posts(db: Session = Depends(get_db)):
 async def ingest_instagram_comments(db: Session = Depends(get_db)):
     try:
         # Fetch all posts
-        posts = await InstagramIngestionService.fetch_instagram_posts(db)
+        posts = PostService.get_posts_by_platform(db, "instagram")
         created_comments = []
 
         for post in posts:
-            post_id = post["id"]
-            post_permalink = post.get("permalink")
+            post_id = post.id_post_platform
+            post_permalink = post.media_url
             # Fetch comments for each post
             comments_data = await InstagramIngestionService.fetch_comments(db, post_id, post_permalink)
             for comment_data in comments_data:
@@ -162,11 +162,11 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
     try:
         created_comments = []
 
-        # 1) Traemos los posts (del Graph, no de la DB, para asegurar que existan)
-        posts_data = await FacebookIngestionService.fetch_posts(db)
+        # Get posts from DB
+        posts_data = PostService.get_posts_by_platform(db, "facebook")
 
         for p in posts_data:
-            post_id = p["id"]
+            post_id = p.id_post_platform
             comments_data = await FacebookIngestionService.fetch_comments(db, post_id)
 
             for c in comments_data:
@@ -175,7 +175,7 @@ async def ingest_facebook_comments(db: Session = Depends(get_db)):
                     "id_comment_platform": c["id"],
                     "author": (c.get("from") or {}).get("name"),
                     "content": c.get("message", "") or "",
-                    "post_url": p.get("permalink_url"),
+                    "post_url": p.media_url,
                     "platform_created_at": c.get("created_time"),
                 }
 

@@ -369,7 +369,7 @@ def intention_distribution(
    }
 
 @router.get("/posts")
-def list_posts(
+async def list_posts(
     platform: Optional[str] = Query(None, pattern="^(facebook|instagram)$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -379,6 +379,10 @@ def list_posts(
     Devuelve las publicaciones guardadas (Facebook/Instagram)
     Permite filtrar por plataforma o listar todas.
     """
+
+    await FacebookIngestionService.fetch_posts(db);
+    await InstagramIngestionService.fetch_instagram_posts(db);
+
     posts = PostService.list_posts(db=db, platform=platform, limit=limit, offset=offset)
     return [PostService.to_dict(p) for p in posts]
 

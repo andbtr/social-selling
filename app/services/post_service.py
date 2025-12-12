@@ -67,3 +67,7 @@ class PostService:
             "created_at": p.created_at.isoformat() if p.created_at else None,
             "platform_created_at": p.platform_created_at.isoformat() if p.platform_created_at else None,
         }
+
+    @staticmethod
+    def get_posts_by_platform(db: Session, platform: str) -> List[Post]:
+        return db.query(Post).filter(Post.platform == platform.upper()).all()

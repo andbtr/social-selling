@@ -48,5 +48,3 @@ class CRMResponseService:
         ¡Que tengas un excelente día! 😊"""
 
         return message
-
-        return message
