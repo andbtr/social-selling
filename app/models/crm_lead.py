@@ -33,7 +33,7 @@ class CRMLead(Base):
     author = Column(String(255), nullable=True)
     content = Column(Text, nullable=True)
     platform = Column(String(50), nullable=False)  # facebook | instagram | tripadvisor
-    post_url = Column(String(512), nullable=True)
+    post_url = Column(String(2048), nullable=True)
     
     # Enriched lead data
     fullname = Column(String(255), nullable=True)
