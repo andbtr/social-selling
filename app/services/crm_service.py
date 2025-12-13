@@ -17,10 +17,10 @@ class CrmService:
             "email": lead.email,
             "phone": lead.phone,
             "origin": lead.platform,
-            "segment": lead.segment,
+            "segment": "Creación",
             "status": "NUEVO",
             "interest": lead.interest,
-            "score": float(lead.lead_score) if lead.lead_score else None,
+            "score": float(20),
             "convertedToClient": False,
             "primaryContactChannel": None,  # Not in CRMLead
             "estimatedPotentialValue": None, # Not in CRMLead

@@ -43,13 +43,14 @@ async def get_form(
             button {{ width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }}
             button:hover {{ transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }}
             button:active {{ transform: translateY(0); }}
+            button[disabled] {{ opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }}
             .success {{ display: none; background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center; }}
         </style>
     </head>
     <body>
         <div class="container">
             <h1>📋 Formulario de Contacto</h1>
-            <p class="subtitle">Completa el formulario para que podamos contactarte</p>
+            <p class="subtitle">Completa el formulario. Dejanos tu correo y/o teléfono.</p>
             <div class="success" id="successMessage">
                 ✓ ¡Gracias! Tu información ha sido registrada exitosamente.
             </div>
@@ -65,12 +66,12 @@ async def get_form(
                     <input type="text" id="fullname" name="fullname" required placeholder="Juan Pérez">
                 </div>
                 <div class="form-group">
-                    <label for="email">Correo Electrónico *</label>
-                    <input type="email" id="email" name="email" required placeholder="tu@correo.com">
+                    <label for="email">Correo Electrónico</label>
+                    <input type="email" id="email" name="email" placeholder="tu@correo.com">
                 </div>
                 <div class="form-group">
-                    <label for="phone">Teléfono *</label>
-                    <input type="tel" id="phone" name="phone" required placeholder="+34 600 123 456">
+                    <label for="phone">Teléfono</label>
+                    <input type="tel" id="phone" name="phone" placeholder="+34 600 123 456">
                 </div>
                 <div class="form-group">
                     <label for="interest">¿Cuál es tu interés?</label>
@@ -82,19 +83,51 @@ async def get_form(
                         Autorizo el uso de mis datos de contacto para que se comuniquen conmigo
                     </label>
                 </div>
-                <button type="submit">Enviar Información</button>
+                <button type="submit" id="submitBtn" disabled aria-disabled="true">Enviar Información</button>
             </form>
         </div>
         <script>
+            // Toggle submit button enabled state based on consent checkbox
+            document.addEventListener('DOMContentLoaded', function() {{
+                const consentCheckbox = document.getElementById('consent');
+                const submitBtn = document.getElementById('submitBtn');
+                function toggleButton() {{
+                    const enabled = !!consentCheckbox.checked;
+                    submitBtn.disabled = !enabled;
+                    submitBtn.setAttribute('aria-disabled', submitBtn.disabled ? 'true' : 'false');
+                }}
+                toggleButton();
+                consentCheckbox.addEventListener('change', toggleButton);
+            }});
+
+            function hasAtLeastOneContact(email, phone) {{
+                const e = (email || '').trim();
+                const p = (phone || '').trim();
+                return e.length > 0 || p.length > 0;
+            }}
+
             async function submitForm(event) {{
                 event.preventDefault();
+                // Extra guard: do not submit if consent is not checked
+                const consentCheckbox = document.getElementById('consent');
+                if (!consentCheckbox.checked) {{ return; }}
+
                 const form = document.getElementById('contactForm');
                 const formData = new FormData(form);
+                const email = formData.get('email');
+                const phone = formData.get('phone');
+
+                // Validate: require email OR phone
+                if (!hasAtLeastOneContact(email, phone)) {{
+                    alert('Por favor, completa correo o teléfono (al menos uno).');
+                    return;
+                }}
+
                 const data = {{
                     platform: formData.get('platform'),
                     fullname: formData.get('fullname'),
-                    email: formData.get('email'),
-                    phone: formData.get('phone'),
+                    email: email,
+                    phone: phone,
                     interest: formData.get('interest'),
                     consent: formData.get('consent') === 'on',
                     comment_id: formData.get('comment_id') ? parseInt(formData.get('comment_id')) : null

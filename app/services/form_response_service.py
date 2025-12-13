@@ -11,14 +11,15 @@ class FormResponseService:
     @staticmethod
     def create_crm_lead_from_form(db: Session, form_data: dict) -> CRMLead:
         """
-        Create or update a CRMLead from form submission data and sync to external CRM.
+        Create a new CRMLead from form submission data and sync to external CRM.
+        Each form submission creates a new lead, even if comment_id already has leads.
 
         Args:
             db: Database session
             form_data: Form data containing platform, fullname, email, phone, interest, consent, comment_id
 
         Returns:
-            Created or updated CRMLead object
+            Created CRMLead object
         """
         try:
             comment_id = form_data.get("comment_id")
@@ -37,39 +38,19 @@ class FormResponseService:
                 else:
                     print(f"[FormResponseService] Comment {comment_id} not found")
 
-            # Check if CRMLead already exists for this comment_id
-            crm_lead = None
-            if comment_id:
-                crm_lead = db.query(CRMLead).filter(CRMLead.comment_id == comment_id).first()
-
-            if crm_lead:
-                # UPDATE existing CRMLead with form data
-                print(f"[FormResponseService] Updating existing CRMLead {crm_lead.id} for comment {comment_id}")
-                crm_lead.fullname = form_data.get("fullname")
-                crm_lead.email = form_data.get("email")
-                crm_lead.phone = form_data.get("phone")
-                crm_lead.interest = form_data.get("interest")
-                # Update fields from comment if not already set
-                if not crm_lead.lead_score_id and lead_score_id:
-                    crm_lead.lead_score_id = lead_score_id
-                if not crm_lead.post_url and post_url:
-                    crm_lead.post_url = post_url
-                if not crm_lead.content and content:
-                    crm_lead.content = content
-            else:
-                # CREATE new CRMLead
-                print(f"[FormResponseService] Creating new CRMLead for comment {comment_id}")
-                crm_lead = CRMLead(
-                    platform=form_data.get("platform"),
-                    fullname=form_data.get("fullname"),
-                    email=form_data.get("email"),
-                    phone=form_data.get("phone"),
-                    interest=form_data.get("interest"),
-                    comment_id=comment_id,
-                    lead_score_id=lead_score_id,
-                    post_url=post_url,
-                    content=content,
-                )
+            # Always CREATE a new CRMLead (no update behavior)
+            print(f"[FormResponseService] Creating new CRMLead for comment {comment_id}")
+            crm_lead = CRMLead(
+                platform=form_data.get("platform"),
+                fullname=form_data.get("fullname"),
+                email=form_data.get("email"),
+                phone=form_data.get("phone"),
+                interest=form_data.get("interest"),
+                comment_id=comment_id,
+                lead_score_id=lead_score_id,
+                post_url=post_url,
+                content=content,
+            )
 
             db.add(crm_lead)
             db.commit()
